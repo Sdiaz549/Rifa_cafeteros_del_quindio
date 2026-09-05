@@ -42,3 +42,83 @@ export interface ApiSuccess<T> {
 }
 
 export type ApiResult<T> = ApiSuccess<T> | ApiErrorShape
+
+export interface BuyerSummary {
+  id: string
+  fullName: string
+  documentId: string
+  phone: string
+  address: string | null
+  email: string | null
+  notes: string | null
+  ticketsCount?: number
+  balanceDue?: number
+}
+
+export interface SellerSummary {
+  id: string
+  fullName: string
+  documentId: string
+  phone: string
+  address: string | null
+  status: SellerStatus
+  notes: string | null
+  ticketsCount?: number
+  availableCount?: number
+  partialCount?: number
+  paidCount?: number
+  lostCount?: number
+  settledCount?: number
+  collectedTotal?: number
+  pendingTotal?: number
+}
+
+export interface PaymentMethodSummary {
+  id: string
+  name: string
+  status: PaymentMethodStatus
+}
+
+export interface PaymentSummary {
+  id: string
+  ticketId: string
+  ticketNumber?: number
+  type: PaymentType
+  amount: number
+  paidAt: string
+  paymentMethodId: string
+  paymentMethodName: string
+  userId: string
+  userName: string
+  origin: PaymentOrigin
+  notes: string | null
+  sequence: number
+  status: RecordStatus
+}
+
+export interface CreateSaleInput {
+  ticketNumber: number
+  sellerId: string
+  buyerId?: string
+  buyer?: {
+    fullName: string
+    documentId: string
+    phone: string
+    address?: string
+    email?: string
+  }
+  amount: number
+  initialPayment: number
+  paymentMethodId: string
+  soldAt?: string
+  notes?: string
+}
+
+export interface CreatePaymentInput {
+  ticketNumber: number
+  amount: number
+  paymentMethodId: string
+  paidAt?: string
+  notes?: string
+  origin?: PaymentOrigin
+}

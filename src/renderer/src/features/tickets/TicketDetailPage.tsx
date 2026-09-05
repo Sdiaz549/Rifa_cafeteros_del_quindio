@@ -1,14 +1,35 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
 import { formatDateCo } from '@shared/dates'
-import type { TicketSummary } from '@shared/types'
+import type { PaymentSummary, TicketSummary } from '@shared/types'
+import { useAuth } from '../auth/AuthContext'
 import { cn } from '../../lib/cn'
 
 export function TicketDetailPage() {
   const { number } = useParams()
+  const { can } = useAuth()
   const [ticket, setTicket] = useState<(TicketSummary & { statusLabel?: string }) | null>(null)
+  const [payments, setPayments] = useState<PaymentSummary[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [markingLost, setMarkingLost] = useState(false)
+
+  async function load(n: number) {
+    const [ticketRes, paymentsRes] = await Promise.all([
+      window.api.tickets.getByNumber(n),
+      window.api.payments.listByTicket(n)
+    ])
+    if (!ticketRes.ok) {
+      setError(ticketRes.error)
+      setTicket(null)
+      setPayments([])
+      return
+    }
+    setTicket(ticketRes.data)
+    setError(null)
+    if (paymentsRes.ok) setPayments(paymentsRes.data)
+  }
 
   useEffect(() => {
     const n = Number(number)
@@ -16,17 +37,24 @@ export function TicketDetailPage() {
       setError('Número inválido')
       return
     }
-    void (async () => {
-      const res = await window.api.tickets.getByNumber(n)
-      if (!res.ok) {
-        setError(res.error)
-        setTicket(null)
-      } else {
-        setTicket(res.data)
-        setError(null)
-      }
-    })()
+    void load(n)
   }, [number])
+
+  async function onMarkLost() {
+    if (!ticket) return
+    if (!window.confirm(`¿Marcar la boleta ${String(ticket.number).padStart(4, '0')} como PERDIDA?`)) {
+      return
+    }
+    setMarkingLost(true)
+    const res = await window.api.tickets.markLost(ticket.number)
+    setMarkingLost(false)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success('Boleta marcada como perdida')
+    setTicket({ ...res.data, statusLabel: 'Perdida' })
+  }
 
   if (error) {
     return (
@@ -51,12 +79,34 @@ export function TicketDetailPage() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            to="/abonos"
-            className="rounded-xl bg-brand-800 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Registrar abono
-          </Link>
+          {ticket.status === 'DISPONIBLE' && can('tickets:sell') && (
+            <Link
+              to={`/nueva-venta?boleta=${ticket.number}`}
+              className="rounded-xl bg-brand-800 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Vender
+            </Link>
+          )}
+          {ticket.status === 'EN_ABONOS' && can('payments:create') && (
+            <Link
+              to={`/abonos?boleta=${ticket.number}`}
+              className="rounded-xl bg-brand-800 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Registrar abono
+            </Link>
+          )}
+          {can('tickets:mark_lost') &&
+            ticket.status !== 'PERDIDA' &&
+            ticket.status !== 'DISPONIBLE' && (
+              <button
+                type="button"
+                disabled={markingLost}
+                onClick={() => void onMarkLost()}
+                className="rounded-xl border border-accent-red px-4 py-2 text-sm font-semibold text-accent-red disabled:opacity-60"
+              >
+                {markingLost ? 'Marcando…' : 'Marcar perdida'}
+              </button>
+            )}
           <Link to="/boletas" className="rounded-xl border border-line bg-white px-4 py-2 text-sm">
             Regresar
           </Link>
@@ -111,9 +161,44 @@ export function TicketDetailPage() {
         </section>
       </div>
 
-      <p className="text-sm text-ink-muted">
-        Historial de abonos, edición e impresión se completan en fases siguientes.
-      </p>
+      <section className="overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="border-b border-line px-5 py-3">
+          <h2 className="font-semibold text-brand-900">Historial de abonos</h2>
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="bg-brand-50 text-ink-muted">
+            <tr>
+              <th className="px-4 py-3 font-medium">#</th>
+              <th className="px-4 py-3 font-medium">Fecha</th>
+              <th className="px-4 py-3 font-medium">Tipo</th>
+              <th className="px-4 py-3 font-medium">Valor</th>
+              <th className="px-4 py-3 font-medium">Método</th>
+              <th className="px-4 py-3 font-medium">Usuario</th>
+              <th className="px-4 py-3 font-medium">Origen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-ink-muted">
+                  Sin movimientos registrados.
+                </td>
+              </tr>
+            )}
+            {payments.map((p) => (
+              <tr key={p.id} className="border-t border-line">
+                <td className="px-4 py-2.5">{p.sequence}</td>
+                <td className="px-4 py-2.5">{formatDateCo(p.paidAt)}</td>
+                <td className="px-4 py-2.5">{p.type}</td>
+                <td className="px-4 py-2.5 font-medium">{formatCop(p.amount)}</td>
+                <td className="px-4 py-2.5">{p.paymentMethodName}</td>
+                <td className="px-4 py-2.5">{p.userName}</td>
+                <td className="px-4 py-2.5">{p.origin}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </div>
   )
 }

@@ -7,6 +7,10 @@ import { HomePage } from './features/home/HomePage'
 import { TicketsPage } from './features/tickets/TicketsPage'
 import { TicketDetailPage } from './features/tickets/TicketDetailPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
+import { NewSalePage } from './features/sales/NewSalePage'
+import { PaymentsPage } from './features/payments/PaymentsPage'
+import { BuyersPage } from './features/buyers/BuyersPage'
+import { SellersPage } from './features/sellers/SellersPage'
 import { PlaceholderPage } from './features/common/PlaceholderPage'
 import { Toaster } from 'sonner'
 
@@ -42,10 +46,7 @@ export default function App() {
               path="nueva-venta"
               element={
                 <RequirePermission permission="tickets:sell">
-                  <PlaceholderPage
-                    title="Nueva venta"
-                    description="Formulario de venta con comprador, vendedor y pago inicial."
-                  />
+                  <NewSalePage />
                 </RequirePermission>
               }
             />
@@ -53,10 +54,7 @@ export default function App() {
               path="abonos"
               element={
                 <RequirePermission permission="payments:create">
-                  <PlaceholderPage
-                    title="Abonos"
-                    description="Registro de abonos con validación de saldo y origen MANUAL/VOZ."
-                  />
+                  <PaymentsPage />
                 </RequirePermission>
               }
             />
@@ -64,7 +62,7 @@ export default function App() {
               path="compradores"
               element={
                 <RequirePermission permission="buyers:manage">
-                  <PlaceholderPage title="Compradores" description="CRUD y consulta de compradores." />
+                  <BuyersPage />
                 </RequirePermission>
               }
             />
@@ -72,10 +70,7 @@ export default function App() {
               path="vendedores"
               element={
                 <RequirePermission permission="sellers:manage">
-                  <PlaceholderPage
-                    title="Vendedores"
-                    description="Perfiles, métricas y boletas asignadas."
-                  />
+                  <SellersPage />
                 </RequirePermission>
               }
             />

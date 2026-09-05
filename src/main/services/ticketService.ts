@@ -109,6 +109,58 @@ export async function getTicketByNumber(
   }
 }
 
+export async function markTicketLost(number: number): Promise<ApiResult<TicketSummary>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'tickets:mark_lost')
+    const prisma = getPrisma()
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({
+        where: { number },
+        include: { seller: true, buyer: true }
+      })
+      if (!ticket) {
+        throw new Error(`No existe la boleta ${number}.`)
+      }
+      if (ticket.status === 'PERDIDA') {
+        throw new Error(`La boleta ${number} ya está marcada como perdida.`)
+      }
+      if (ticket.status === 'DISPONIBLE') {
+        throw new Error('No se puede marcar como perdida una boleta sin vender.')
+      }
+
+      const result = await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { status: 'PERDIDA' },
+        include: { seller: true, buyer: true }
+      })
+
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          module: 'BOLETAS',
+          action: 'BOLETA_MARCADA_PERDIDA',
+          entity: 'Ticket',
+          entityId: ticket.id,
+          previousValue: JSON.stringify({ status: ticket.status }),
+          newValue: JSON.stringify({ status: 'PERDIDA' }),
+          origin: 'MANUAL'
+        }
+      })
+
+      return result
+    })
+
+    return { ok: true, data: mapTicket(updated as never) }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error al marcar boleta como perdida'
+    }
+  }
+}
+
 export async function getTicketStats(): Promise<
   ApiResult<Record<string, number>>
 > {

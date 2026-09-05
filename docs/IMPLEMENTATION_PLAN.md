@@ -6,7 +6,7 @@ Entregar una aplicación Electron instalable en Windows que cubra **todos** los 
 
 Este documento divide el trabajo en **20 fases**. Cada fase tiene entregables verificables y dependencias claras.
 
-**Estado actual:** Fases 1–4 implementadas (scaffold, SQLite/Prisma, auth/roles, layout + boletas + dashboard). Seed y tests de dominio en verde. Build de producción OK.
+**Estado actual:** Fases 1–9 avanzadas: scaffold, SQLite/Prisma, auth/roles, layout, boletas, **ventas**, **abonos**, compradores/vendedores CRUD, estados automáticos y tests de reglas. Build OK.
 
 ---
 
