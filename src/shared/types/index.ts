@@ -247,3 +247,23 @@ export interface BackupSettings {
   autoBackupEnabled: boolean
   autoBackupOnClose: boolean
 }
+
+export interface AuditLogSummary {
+  id: string
+  createdAt: string
+  userId: string | null
+  userName: string | null
+  module: string
+  action: string
+  entity: string
+  entityId: string | null
+  previousValue: string | null
+  newValue: string | null
+  origin: string
+  notes: string | null
+}
+
+export interface AuditListResult {
+  items: AuditLogSummary[]
+  total: number
+}

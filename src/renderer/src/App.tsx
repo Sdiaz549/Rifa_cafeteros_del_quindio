@@ -17,6 +17,7 @@ import { IncomesPage } from './features/incomes/IncomesPage'
 import { ExpensesPage } from './features/expenses/ExpensesPage'
 import { ReportsPage } from './features/reports/ReportsPage'
 import { BackupsPage } from './features/backups/BackupsPage'
+import { AuditPage } from './features/audit/AuditPage'
 import { PlaceholderPage } from './features/common/PlaceholderPage'
 import { Toaster } from 'sonner'
 
@@ -130,7 +131,7 @@ export default function App() {
               path="admin/auditoria"
               element={
                 <RequirePermission permission="audit:view">
-                  <PlaceholderPage title="Auditoría" description="Historial append-only de operaciones." />
+                  <AuditPage />
                 </RequirePermission>
               }
             />

@@ -14,6 +14,7 @@ import * as expenseService from '../services/expenseService'
 import * as reportService from '../services/reportService'
 import * as excelExportService from '../services/excelExportService'
 import * as backupService from '../services/backupService'
+import * as auditService from '../audit/auditService'
 import { requireSession } from '../auth/session'
 
 export function registerIpcHandlers(): void {
@@ -92,6 +93,9 @@ export function registerIpcHandlers(): void {
     backupService.updateBackupSettings(payload)
   )
   ipcMain.handle('backups:chooseFolder', async () => backupService.chooseBackupFolder())
+
+  ipcMain.handle('audit:list', async (_e, payload) => auditService.listAuditLogs(payload))
+  ipcMain.handle('audit:listModules', async () => auditService.listAuditModules())
 
   ipcMain.handle('dashboard:get', async (_e, payload) =>
     dashboardService.getAdminDashboard(payload)

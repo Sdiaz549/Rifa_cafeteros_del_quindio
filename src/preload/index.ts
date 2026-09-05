@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ApiResult,
+  AuditListResult,
+  AuditLogSummary,
   BackupSettings,
   BackupSummary,
   BuyerSummary,
@@ -182,6 +184,16 @@ const api = {
       ipcRenderer.invoke('backups:updateSettings', payload),
     chooseFolder: (): Promise<ApiResult<{ backupFolder: string }>> =>
       ipcRenderer.invoke('backups:chooseFolder')
+  },
+  audit: {
+    list: (payload?: {
+      from?: string
+      to?: string
+      module?: string
+      query?: string
+      take?: number
+    }): Promise<ApiResult<AuditListResult>> => ipcRenderer.invoke('audit:list', payload),
+    listModules: (): Promise<ApiResult<string[]>> => ipcRenderer.invoke('audit:listModules')
   },
   dashboard: {
     get: (payload?: { from?: string; to?: string }) =>
