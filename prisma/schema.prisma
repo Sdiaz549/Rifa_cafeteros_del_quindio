@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleCode {
+  ADMIN
+  USER
+}
+
+enum TicketStatus {
+  DISPONIBLE
+  EN_ABONOS
+  CANCELADA
+  PERDIDA
+}
+
+enum SellerStatus {
+  ACTIVO
+  INACTIVO
+}
+
+enum PaymentMethodStatus {
+  ACTIVO
+  INACTIVO
+}
+
+enum PaymentType {
+  VENTA_INICIAL
+  ABONO
+}
+
+enum PaymentOrigin {
+  MANUAL
+  VOZ
+}
+
+enum RecordStatus {
+  ACTIVO
+  ANULADO
+}
+
+enum AssignmentReason {
+  ASIGNACION_INICIAL
+  CAMBIO_VENDEDOR
+  DEVOLUCION
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  code      RoleCode @unique
+  name      String
+  createdAt DateTime @default(now())
+  users     User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  fullName     String
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  payments           Payment[]
+  sales              Sale[]
+  settlements        Settlement[]
+  expenses           Expense[]
+  auditLogs          AuditLog[]
+  backupRecords      BackupRecord[]
+  settingsUpdates    Setting[]
+  assignments        TicketAssignment[]
+}
+
+model Seller {
+  id         String       @id @default(cuid())
+  fullName   String
+  documentId String       @unique
+  phone      String
+  address    String?
+  status     SellerStatus @default(ACTIVO)
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  tickets      Ticket[]
+  assignments  TicketAssignment[]
+  sales        Sale[]
+  settlements  Settlement[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([status])
+}
+
+model Buyer {
+  id         String   @id @default(cuid())
+  fullName   String
+  documentId String   @unique
+  phone      String
+  address    String?
+  email      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tickets Ticket[]
+  sales   Sale[]
+
+  @@index([phone])
+  @@index([fullName])
+}
+
+model PaymentMethod {
+  id        String              @id @default(cuid())
+  name      String              @unique
+  status    PaymentMethodStatus @default(ACTIVO)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  payments Payment[]
+  sales    Sale[]
+  expenses Expense[]
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  number      Int          @unique
+  status      TicketStatus @default(DISPONIBLE)
+  sellerId    String?
+  seller      Seller?      @relation(fields: [sellerId], references: [id])
+  buyerId     String?
+  buyer       Buyer?       @relation(fields: [buyerId], references: [id])
+  soldAt      DateTime?
+  totalAmount Int          @default(0)
+  totalPaid   Int          @default(0)
+  balanceDue  Int          @default(0)
+  isSettled   Boolean      @default(false)
+  settledAt   DateTime?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  assignments TicketAssignment[]
+  sales       Sale[]
+  payments    Payment[]
+  settlements Settlement[]
+
+  @@index([status])
+  @@index([sellerId])
+  @@index([buyerId])
+  @@index([isSettled])
+  @@index([status, sellerId])
+  @@index([isSettled, status])
+}
+
+model TicketAssignment {
+  id               String           @id @default(cuid())
+  ticketId         String
+  ticket           Ticket           @relation(fields: [ticketId], references: [id])
+  sellerId         String
+  seller           Seller           @relation(fields: [sellerId], references: [id])
+  assignedAt       DateTime         @default(now())
+  assignedByUserId String?
+  assignedBy       User?            @relation(fields: [assignedByUserId], references: [id])
+  reason           AssignmentReason @default(ASIGNACION_INICIAL)
+  notes            String?
+  endedAt          DateTime?
+
+  @@index([ticketId])
+  @@index([sellerId])
+  @@index([sellerId, endedAt])
+}
+
+model Sale {
+  id                String       @id @default(cuid())
+  ticketId          String
+  ticket            Ticket       @relation(fields: [ticketId], references: [id])
+  buyerId           String
+  buyer             Buyer        @relation(fields: [buyerId], references: [id])
+  sellerId          String
+  seller            Seller       @relation(fields: [sellerId], references: [id])
+  amount            Int
+  soldAt            DateTime
+  initialPayment    Int          @default(0)
+  paymentMethodId   String?
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  notes             String?
+  status            RecordStatus @default(ACTIVO)
+  createdByUserId   String
+  createdBy         User         @relation(fields: [createdByUserId], references: [id])
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  payments          Payment[]
+
+  @@index([ticketId])
+  @@index([sellerId])
+  @@index([buyerId])
+  @@index([soldAt])
+  @@index([status])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  ticketId        String
+  ticket          Ticket        @relation(fields: [ticketId], references: [id])
+  saleId          String?
+  sale            Sale?         @relation(fields: [saleId], references: [id])
+  type            PaymentType
+  amount          Int
+  paidAt          DateTime
+  paymentMethodId String
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  origin          PaymentOrigin @default(MANUAL)
+  notes           String?
+  status          RecordStatus  @default(ACTIVO)
+  sequence        Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([ticketId])
+  @@index([paidAt])
+  @@index([paymentMethodId])
+  @@index([userId])
+  @@index([status])
+  @@index([ticketId, status])
+}
+
+model Settlement {
+  id        String       @id @default(cuid())
+  ticketId  String
+  ticket    Ticket       @relation(fields: [ticketId], references: [id])
+  sellerId  String
+  seller    Seller       @relation(fields: [sellerId], references: [id])
+  amount    Int
+  settledAt DateTime
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  notes     String?
+  status    RecordStatus @default(ACTIVO)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([ticketId])
+  @@index([sellerId])
+  @@index([settledAt])
+  @@index([status])
+}
+
+model Expense {
+  id              String         @id @default(cuid())
+  expenseDate     DateTime
+  concept         String
+  category        String
+  amount          Int
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  notes           String?
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  status          RecordStatus   @default(ACTIVO)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([expenseDate])
+  @@index([category])
+  @@index([status])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  module        String
+  action        String
+  entity        String
+  entityId      String?
+  previousValue String?
+  newValue      String?
+  origin        String   @default("MANUAL")
+  notes         String?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([module])
+  @@index([entity])
+  @@index([entity, entityId])
+}
+
+model Setting {
+  key             String   @id
+  value           String
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+  updatedBy       User?    @relation(fields: [updatedByUserId], references: [id])
+}
+
+model BackupRecord {
+  id              String   @id @default(cuid())
+  fileName        String
+  filePath        String
+  createdAt       DateTime @default(now())
+  trigger         String
+  createdByUserId String?
+  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+  sizeBytes       Int
+  notes           String?
+}

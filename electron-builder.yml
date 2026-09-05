@@ -1,0 +1,21 @@
+appId: com.cafeteros.rifa
+productName: Rifa Cafeteros del Quindío
+directories:
+  buildResources: resources
+  output: release
+files:
+  - out/**/*
+  - prisma/**/*
+  - package.json
+asarUnpack:
+  - node_modules/.prisma/**/*
+  - node_modules/@prisma/client/**/*
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Rifa Cafeteros

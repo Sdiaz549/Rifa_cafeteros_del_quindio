@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Source Serif 4', ui-serif, Georgia, serif;
+
+  --color-brand-950: #06281e;
+  --color-brand-900: #0f3d2e;
+  --color-brand-800: #145239;
+  --color-brand-700: #1a6b48;
+  --color-brand-600: #218556;
+  --color-brand-100: #e6f4ee;
+  --color-brand-50: #f3faf7;
+
+  --color-accent-red: #c62828;
+  --color-accent-red-dark: #8e1b1b;
+
+  --color-ticket-available: #ffffff;
+  --color-ticket-partial: #fff59d;
+  --color-ticket-paid: #76ff03;
+  --color-ticket-lost: #e53935;
+
+  --color-surface: #f7faf8;
+  --color-surface-elevated: #ffffff;
+  --color-ink: #14221c;
+  --color-ink-muted: #5c6f66;
+  --color-line: #d5e3db;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #1a6b4833, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #c6282818, transparent 45%),
+      var(--color-surface);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .ticket-disponible {
+    background: var(--color-ticket-available);
+    border-color: var(--color-line);
+  }
+
+  .ticket-en-abonos {
+    background: var(--color-ticket-partial);
+    border-color: #f0e060;
+  }
+
+  .ticket-cancelada {
+    background: var(--color-ticket-paid);
+    border-color: #5ed100;
+  }
+
+  .ticket-perdida {
+    background: var(--color-ticket-lost);
+    color: white;
+    border-color: #b71c1c;
+  }
+}

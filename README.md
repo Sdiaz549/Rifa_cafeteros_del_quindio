@@ -1,43 +1,76 @@
 # Rifa — Cafeteros del Quindío
 
-Aplicación de **escritorio local** para la gestión completa de una rifa (boletas, vendedores, compradores, ventas, abonos, liquidaciones, finanzas, auditoría, backups y comandos de voz).
+Aplicación de **escritorio local** (Electron + React + TypeScript + SQLite) para administrar la rifa de **Cafeteros del Quindío**.
 
-Funciona **sin Internet**. Base de datos **SQLite** en el computador. Pensada para un solo puesto de trabajo.
+Funciona **sin Internet**. Un solo computador. Base de datos local.
 
-## Estado del proyecto
+## Estado actual (Fases 1–4)
 
-**Etapa 0 — Diseño documental** (en curso / entregada en `docs/`).
+- Scaffold Electron + React + Tailwind
+- Prisma/SQLite con esquema completo
+- Login + sesión + permisos reales en proceso main
+- Layout (sidebar, búsqueda global, menú por rol)
+- Boletas (cuadrícula/lista) + detalle
+- Dashboard admin (KPIs)
+- Seed de desarrollo + tests de dominio
 
-La implementación de código comenzará en la **Fase 1** según el plan.
+## Documentación de diseño
 
 | Documento | Contenido |
 |-----------|-----------|
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Requisitos funcionales/NFR, inconsistencias y resoluciones |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Stack, capas, seguridad, estructura de carpetas |
-| [docs/DATABASE.md](docs/DATABASE.md) | Esquema SQLite, índices, transacciones, seed |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan por fases (1–20) |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Requisitos e inconsistencias resueltas |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Stack, capas, carpetas |
+| [docs/DATABASE.md](docs/DATABASE.md) | Esquema SQLite / Prisma |
+| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan por 20 fases |
 
-## Stack previsto
+## Requisitos
 
-- Electron + React + TypeScript + Vite
-- SQLite + Prisma
-- Tailwind CSS + Radix/shadcn-style UI
-- Recharts, ExcelJS, Zod, bcrypt
-- Vitest + electron-builder (Windows NSIS)
+- Node.js 20+
+- npm 10+
+- Windows para el instalador final (desarrollo posible en Linux/macOS)
 
-## Roles
+## Instalación (desarrollo)
 
-- **ADMINISTRADOR** — acceso total (finanzas, usuarios, config, backups, auditoría)
-- **USUARIO** — operación diaria (boletas, ventas, abonos, catálogos operativos)
+```bash
+npm install
+npx prisma generate
+npx prisma db push
+npm run db:seed
+npm run dev
+```
 
-Los permisos se validan en el proceso main (IPC), no solo en la UI.
+### Usuarios seed (solo desarrollo)
 
-## Próximos pasos
+| Usuario | Contraseña | Rol |
+|---------|------------|-----|
+| `admin` | `Admin123!` | ADMIN |
+| `operador` | `Usuario123!` | USER |
 
-1. Revisar y aprobar la documentación de diseño
-2. Fase 1: scaffold del proyecto Electron
-3. Fase 2: modelo Prisma y migraciones
+**No usar estas contraseñas en producción.**
 
-## Licencia / uso
+## Scripts
 
-Software interno para Cafeteros del Quindío.
+| Script | Descripción |
+|--------|-------------|
+| `npm run dev` | App Electron en modo desarrollo |
+| `npm run test` | Tests Vitest (reglas de dominio) |
+| `npm run typecheck` | TypeScript main + renderer |
+| `npm run build` | Build producción |
+| `npm run dist:win` | Instalador Windows (NSIS) |
+| `npm run db:seed` | Datos de desarrollo |
+| `npm run db:studio` | Prisma Studio |
+
+## Base de datos
+
+- Desarrollo: `data/rifa.db` (ruta vía `DATABASE_URL` / userData en runtime)
+- ORM: Prisma
+- Dinero: enteros COP
+- Soft-delete / `ANULADO` en movimientos financieros
+
+## Próximas fases
+
+Ventas → Abonos → Liquidaciones → Boletas sin vender → Reportes → Excel → Backups → Auditoría UI → Voz → Empaquetado Windows.
+
+## Licencia
+
+Software interno — Cafeteros del Quindío. UNLICENSED.

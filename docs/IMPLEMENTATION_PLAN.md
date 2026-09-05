@@ -6,7 +6,7 @@ Entregar una aplicación Electron instalable en Windows que cubra **todos** los 
 
 Este documento divide el trabajo en **20 fases**. Cada fase tiene entregables verificables y dependencias claras.
 
-**Estado actual:** Etapa 0 (análisis y diseño documental) — **completada con este paquete de docs**. La implementación de código comienza en Fase 1 tras validación del diseño.
+**Estado actual:** Fases 1–4 implementadas (scaffold, SQLite/Prisma, auth/roles, layout + boletas + dashboard). Seed y tests de dominio en verde. Build de producción OK.
 
 ---
 
@@ -37,7 +37,7 @@ Este documento divide el trabajo en **20 fases**. Cada fase tiene entregables ve
 - Scripts: `dev`, `build`, `test`, `prisma:*`
 - ESLint/Prettier básico
 
-**Done when:** `npm run dev` abre ventana Electron con shell vacío.
+**Done when:** `npm run dev` abre ventana Electron con shell vacío. ✅
 
 ---
 
