@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ApiResult,
+  BackupSettings,
+  BackupSummary,
   BuyerSummary,
   CreateExpenseInput,
   CreatePaymentInput,
@@ -151,6 +153,35 @@ const api = {
       from?: string
       to?: string
     }): Promise<ApiResult<ReportResult>> => ipcRenderer.invoke('reports:run', payload)
+  },
+  export: {
+    excel: (payload?: {
+      from?: string
+      to?: string
+    }): Promise<ApiResult<{ filePath: string; sheetCount: number }>> =>
+      ipcRenderer.invoke('export:excel', payload)
+  },
+  backups: {
+    list: (): Promise<ApiResult<BackupSummary[]>> => ipcRenderer.invoke('backups:list'),
+    create: (payload?: {
+      trigger?: BackupSummary['trigger']
+      notes?: string
+    }): Promise<ApiResult<BackupSummary>> => ipcRenderer.invoke('backups:create', payload),
+    restore: (payload?: {
+      backupId?: string
+      filePath?: string
+    }): Promise<ApiResult<{ restored: true; filePath: string }>> =>
+      ipcRenderer.invoke('backups:restore', payload),
+    getSettings: (): Promise<ApiResult<BackupSettings>> =>
+      ipcRenderer.invoke('backups:getSettings'),
+    updateSettings: (payload: {
+      backupFolder?: string
+      autoBackupEnabled?: boolean
+      autoBackupOnClose?: boolean
+    }): Promise<ApiResult<{ saved: true }>> =>
+      ipcRenderer.invoke('backups:updateSettings', payload),
+    chooseFolder: (): Promise<ApiResult<{ backupFolder: string }>> =>
+      ipcRenderer.invoke('backups:chooseFolder')
   },
   dashboard: {
     get: (payload?: { from?: string; to?: string }) =>

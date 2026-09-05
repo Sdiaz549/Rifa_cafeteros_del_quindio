@@ -4,6 +4,9 @@ import { registerIpcHandlers } from './ipc/register'
 import { getDatabaseUrl, getDataDir } from './paths'
 import { getPrisma, disconnectPrisma } from './db/client'
 import { runMigrations } from './db/migrate'
+import { maybeBackupOnClose } from './services/backupService'
+
+let quitting = false
 
 app.whenReady().then(async () => {
   getDataDir()
@@ -35,6 +38,16 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  void disconnectPrisma()
+app.on('before-quit', (event) => {
+  if (quitting) return
+  event.preventDefault()
+  quitting = true
+  void (async () => {
+    try {
+      await maybeBackupOnClose()
+    } finally {
+      await disconnectPrisma()
+      app.quit()
+    }
+  })()
 })

@@ -12,6 +12,8 @@ import * as unsoldService from '../services/unsoldService'
 import * as incomeService from '../services/incomeService'
 import * as expenseService from '../services/expenseService'
 import * as reportService from '../services/reportService'
+import * as excelExportService from '../services/excelExportService'
+import * as backupService from '../services/backupService'
 import { requireSession } from '../auth/session'
 
 export function registerIpcHandlers(): void {
@@ -77,6 +79,19 @@ export function registerIpcHandlers(): void {
     }
   })
   ipcMain.handle('reports:run', async (_e, payload) => reportService.runReport(payload))
+
+  ipcMain.handle('export:excel', async (_e, payload) =>
+    excelExportService.exportFullWorkbook(payload)
+  )
+
+  ipcMain.handle('backups:list', async () => backupService.listBackups())
+  ipcMain.handle('backups:create', async (_e, payload) => backupService.createBackup(payload))
+  ipcMain.handle('backups:restore', async (_e, payload) => backupService.restoreBackup(payload))
+  ipcMain.handle('backups:getSettings', async () => backupService.getBackupSettings())
+  ipcMain.handle('backups:updateSettings', async (_e, payload) =>
+    backupService.updateBackupSettings(payload)
+  )
+  ipcMain.handle('backups:chooseFolder', async () => backupService.chooseBackupFolder())
 
   ipcMain.handle('dashboard:get', async (_e, payload) =>
     dashboardService.getAdminDashboard(payload)

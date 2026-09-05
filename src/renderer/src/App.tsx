@@ -16,6 +16,7 @@ import { UnsoldTicketsPage } from './features/unsold/UnsoldTicketsPage'
 import { IncomesPage } from './features/incomes/IncomesPage'
 import { ExpensesPage } from './features/expenses/ExpensesPage'
 import { ReportsPage } from './features/reports/ReportsPage'
+import { BackupsPage } from './features/backups/BackupsPage'
 import { PlaceholderPage } from './features/common/PlaceholderPage'
 import { Toaster } from 'sonner'
 
@@ -145,7 +146,7 @@ export default function App() {
               path="admin/backups"
               element={
                 <RequirePermission permission="backups:manage">
-                  <PlaceholderPage title="Backups" description="Copias de seguridad y restauración." />
+                  <BackupsPage />
                 </RequirePermission>
               }
             />

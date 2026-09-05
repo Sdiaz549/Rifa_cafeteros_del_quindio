@@ -227,3 +227,23 @@ export interface ReportResult {
   rows: ReportRow[]
   total: number
 }
+
+export type BackupTrigger = 'MANUAL' | 'ON_CLOSE' | 'SCHEDULED' | 'PRE_RESTORE'
+
+export interface BackupSummary {
+  id: string
+  fileName: string
+  filePath: string
+  createdAt: string
+  trigger: BackupTrigger
+  createdByUserId: string | null
+  createdByName: string | null
+  sizeBytes: number
+  notes: string | null
+}
+
+export interface BackupSettings {
+  backupFolder: string
+  autoBackupEnabled: boolean
+  autoBackupOnClose: boolean
+}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
 import type { ReportKind, ReportResult } from '@shared/types'
+import { useAuth } from '../auth/AuthContext'
 
 const MONEY_KINDS: ReportKind[] = [
   'ingresos_por_dia',
@@ -13,12 +14,15 @@ const MONEY_KINDS: ReportKind[] = [
 ]
 
 export function ReportsPage() {
+  const { can } = useAuth()
+  const canExport = can('export:full')
   const [kinds, setKinds] = useState<Array<{ kind: ReportKind; title: string }>>([])
   const [kind, setKind] = useState<ReportKind | ''>('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [result, setResult] = useState<ReportResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -51,13 +55,39 @@ export function ReportsPage() {
     setResult(res.data)
   }
 
+  async function exportExcel() {
+    setExporting(true)
+    const res = await window.api.export.excel({
+      from: from || undefined,
+      to: to || undefined
+    })
+    setExporting(false)
+    if (!res.ok) {
+      if (res.error !== 'Exportación cancelada.') toast.error(res.error)
+      return
+    }
+    toast.success(`Excel exportado (${res.data.sheetCount} hojas)`)
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-brand-900">Reportes</h1>
-        <p className="text-sm text-ink-muted">
-          Consultas operativas y financieras con filtros de fecha.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-brand-900">Reportes</h1>
+          <p className="text-sm text-ink-muted">
+            Consultas operativas y financieras con filtros de fecha.
+          </p>
+        </div>
+        {canExport && (
+          <button
+            type="button"
+            onClick={() => void exportExcel()}
+            disabled={exporting}
+            className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold text-brand-900 hover:bg-brand-50 disabled:opacity-50"
+          >
+            {exporting ? 'Exportando…' : 'Exportar Excel completo'}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-line bg-white p-4">
