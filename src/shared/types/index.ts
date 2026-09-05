@@ -153,3 +153,77 @@ export interface UnsoldBySellerSummary {
   unsoldPercent: number
   tickets: TicketSummary[]
 }
+
+export interface IncomeSummary {
+  id: string
+  ticketNumber: number
+  type: PaymentType
+  amount: number
+  paidAt: string
+  paymentMethodName: string
+  sellerName: string | null
+  buyerName: string | null
+  userName: string
+  origin: PaymentOrigin
+  notes: string | null
+}
+
+export interface IncomeListResult {
+  items: IncomeSummary[]
+  total: number
+  totalAmount: number
+  totalInitialSales: number
+  totalInstallments: number
+}
+
+export interface ExpenseSummary {
+  id: string
+  expenseDate: string
+  concept: string
+  category: string
+  amount: number
+  paymentMethodId: string | null
+  paymentMethodName: string | null
+  notes: string | null
+  userId: string
+  userName: string
+  status: RecordStatus
+}
+
+export interface CreateExpenseInput {
+  expenseDate?: string
+  concept: string
+  category: string
+  amount: number
+  paymentMethodId?: string | null
+  notes?: string | null
+}
+
+export interface ExpenseListResult {
+  items: ExpenseSummary[]
+  total: number
+  totalAmount: number
+}
+
+export type ReportKind =
+  | 'ingresos_por_dia'
+  | 'ventas_por_vendedor'
+  | 'recaudo_por_vendedor'
+  | 'metodos_de_pago'
+  | 'boletas_por_estado'
+  | 'egresos_por_categoria'
+  | 'pendientes_liquidacion'
+
+export interface ReportRow {
+  label: string
+  value: number
+  secondary?: number
+  meta?: string
+}
+
+export interface ReportResult {
+  kind: ReportKind
+  title: string
+  rows: ReportRow[]
+  total: number
+}

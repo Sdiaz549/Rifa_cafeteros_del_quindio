@@ -13,6 +13,9 @@ import { BuyersPage } from './features/buyers/BuyersPage'
 import { SellersPage } from './features/sellers/SellersPage'
 import { SettlementsPage } from './features/settlements/SettlementsPage'
 import { UnsoldTicketsPage } from './features/unsold/UnsoldTicketsPage'
+import { IncomesPage } from './features/incomes/IncomesPage'
+import { ExpensesPage } from './features/expenses/ExpensesPage'
+import { ReportsPage } from './features/reports/ReportsPage'
 import { PlaceholderPage } from './features/common/PlaceholderPage'
 import { Toaster } from 'sonner'
 
@@ -85,7 +88,7 @@ export default function App() {
               path="reportes"
               element={
                 <RequirePermission permission="reports:operational">
-                  <PlaceholderPage title="Reportes" description="Reportes operativos y filtros." />
+                  <ReportsPage />
                 </RequirePermission>
               }
             />
@@ -94,7 +97,7 @@ export default function App() {
               path="admin/ingresos"
               element={
                 <RequirePermission permission="incomes:view">
-                  <PlaceholderPage title="Ingresos" description="Consulta de ingresos (ADMIN)." />
+                  <IncomesPage />
                 </RequirePermission>
               }
             />
@@ -102,7 +105,7 @@ export default function App() {
               path="admin/egresos"
               element={
                 <RequirePermission permission="expenses:manage">
-                  <PlaceholderPage title="Egresos" description="Registro y consulta de egresos." />
+                  <ExpensesPage />
                 </RequirePermission>
               }
             />

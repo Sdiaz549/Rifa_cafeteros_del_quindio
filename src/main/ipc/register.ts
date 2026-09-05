@@ -9,6 +9,10 @@ import * as sellerService from '../services/sellerService'
 import * as paymentMethodService from '../services/paymentMethodService'
 import * as settlementService from '../services/settlementService'
 import * as unsoldService from '../services/unsoldService'
+import * as incomeService from '../services/incomeService'
+import * as expenseService from '../services/expenseService'
+import * as reportService from '../services/reportService'
+import { requireSession } from '../auth/session'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('auth:login', async (_e, payload) => authService.login(payload))
@@ -49,6 +53,30 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settlements:list', async (_e, payload) => settlementService.listSettlements(payload))
 
   ipcMain.handle('unsold:listBySeller', async (_e, payload) => unsoldService.listUnsoldBySeller(payload))
+
+  ipcMain.handle('incomes:list', async (_e, payload) => incomeService.listIncomes(payload))
+
+  ipcMain.handle('expenses:list', async (_e, payload) => expenseService.listExpenses(payload))
+  ipcMain.handle('expenses:create', async (_e, payload) => expenseService.createExpense(payload))
+  ipcMain.handle('expenses:void', async (_e, id: string) => expenseService.voidExpense(id))
+  ipcMain.handle('expenses:categories', async () => {
+    try {
+      requireSession()
+      return { ok: true as const, data: [...expenseService.EXPENSE_CATEGORIES] }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : 'Error' }
+    }
+  })
+
+  ipcMain.handle('reports:listKinds', async () => {
+    try {
+      const session = requireSession()
+      return { ok: true as const, data: reportService.listReportKinds(session.role) }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : 'Error' }
+    }
+  })
+  ipcMain.handle('reports:run', async (_e, payload) => reportService.runReport(payload))
 
   ipcMain.handle('dashboard:get', async (_e, payload) =>
     dashboardService.getAdminDashboard(payload)

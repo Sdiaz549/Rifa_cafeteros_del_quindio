@@ -2,11 +2,17 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ApiResult,
   BuyerSummary,
+  CreateExpenseInput,
   CreatePaymentInput,
   CreateSaleInput,
   CreateSettlementInput,
+  ExpenseListResult,
+  ExpenseSummary,
+  IncomeListResult,
   PaymentMethodSummary,
   PaymentSummary,
+  ReportKind,
+  ReportResult,
   SellerSummary,
   SessionUser,
   SettlementSummary,
@@ -113,6 +119,38 @@ const api = {
         }
       }>
     > => ipcRenderer.invoke('unsold:listBySeller', payload)
+  },
+  incomes: {
+    list: (payload?: {
+      from?: string
+      to?: string
+      type?: 'VENTA_INICIAL' | 'ABONO' | 'TODOS'
+      query?: string
+      take?: number
+    }): Promise<ApiResult<IncomeListResult>> => ipcRenderer.invoke('incomes:list', payload)
+  },
+  expenses: {
+    list: (payload?: {
+      from?: string
+      to?: string
+      category?: string
+      query?: string
+      take?: number
+    }): Promise<ApiResult<ExpenseListResult>> => ipcRenderer.invoke('expenses:list', payload),
+    create: (payload: CreateExpenseInput): Promise<ApiResult<ExpenseSummary>> =>
+      ipcRenderer.invoke('expenses:create', payload),
+    void: (id: string): Promise<ApiResult<ExpenseSummary>> =>
+      ipcRenderer.invoke('expenses:void', id),
+    categories: (): Promise<ApiResult<string[]>> => ipcRenderer.invoke('expenses:categories')
+  },
+  reports: {
+    listKinds: (): Promise<ApiResult<Array<{ kind: ReportKind; title: string }>>> =>
+      ipcRenderer.invoke('reports:listKinds'),
+    run: (payload: {
+      kind: ReportKind
+      from?: string
+      to?: string
+    }): Promise<ApiResult<ReportResult>> => ipcRenderer.invoke('reports:run', payload)
   },
   dashboard: {
     get: (payload?: { from?: string; to?: string }) =>
