@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { APP_NAME, COMPANY_NAME } from '@shared/constants'
+import logoSorteosCafeteros from '../../assets/logo-sorteos-cafeteros.jpg'
 
 export function LoginPage() {
   const { session, login, loading } = useAuth()
@@ -22,14 +22,16 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-full grid place-items-center px-4 py-10">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-white shadow-[0_24px_60px_rgba(15,61,46,0.18)]">
-        <div className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 px-8 py-10 text-white">
-          <p className="text-sm uppercase tracking-[0.2em] text-brand-100/80">Sistema local</p>
-          <h1 className="font-display mt-2 text-4xl font-bold tracking-tight">{APP_NAME}</h1>
-          <p className="mt-2 text-lg text-brand-50">{COMPANY_NAME}</p>
+    <div className="grid min-h-full place-items-center px-4 py-8">
+      <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-line bg-white/95 shadow-[0_28px_70px_rgba(15,61,46,0.16)]">
+        <div className="flex flex-col items-center px-6 pb-1 pt-8 sm:px-10 sm:pt-10">
+          <img
+            src={logoSorteosCafeteros}
+            alt="Sorteos Cafeteros"
+            className="h-auto w-[min(100%,26rem)] object-contain"
+          />
         </div>
-        <form onSubmit={onSubmit} className="space-y-4 px-8 py-8">
+        <form onSubmit={onSubmit} className="space-y-4 px-8 pb-8 pt-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink">Usuario</label>
             <input
