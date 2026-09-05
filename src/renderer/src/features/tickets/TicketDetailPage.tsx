@@ -95,6 +95,14 @@ export function TicketDetailPage() {
               Registrar abono
             </Link>
           )}
+          {ticket.status === 'CANCELADA' && !ticket.isSettled && can('settlements:manage') && (
+            <Link
+              to={`/liquidaciones?boleta=${ticket.number}`}
+              className="rounded-xl bg-brand-800 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Liquidar
+            </Link>
+          )}
           {can('tickets:mark_lost') &&
             ticket.status !== 'PERDIDA' &&
             ticket.status !== 'DISPONIBLE' && (

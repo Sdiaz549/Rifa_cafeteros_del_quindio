@@ -122,3 +122,34 @@ export interface CreatePaymentInput {
   notes?: string
   origin?: PaymentOrigin
 }
+
+export interface CreateSettlementInput {
+  ticketNumber: number
+  settledAt?: string
+  notes?: string
+  amount?: number
+}
+
+export interface SettlementSummary {
+  id: string
+  ticketId: string
+  ticketNumber: number
+  sellerId: string
+  sellerName: string
+  amount: number
+  settledAt: string
+  userId: string
+  userName: string
+  notes: string | null
+  status: RecordStatus
+}
+
+export interface UnsoldBySellerSummary {
+  sellerId: string | null
+  sellerName: string
+  sellerStatus: SellerStatus | null
+  ticketCount: number
+  unsoldCount: number
+  unsoldPercent: number
+  tickets: TicketSummary[]
+}

@@ -12,22 +12,31 @@ import {
   LogOut,
   Mic,
   Search,
-  Shield
+  Shield,
+  HandCoins
 } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthContext'
 import { APP_NAME, COMPANY_NAME } from '@shared/constants'
 import { FormEvent, useState } from 'react'
 import { cn } from '../lib/cn'
+import type { Permission } from '@shared/permissions'
 
-const mainNav = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
-  { to: '/boletas', label: 'Boletas', icon: Ticket },
-  { to: '/boletas-sin-vender', label: 'Boletas sin vender', icon: TicketX },
-  { to: '/nueva-venta', label: 'Nueva Venta', icon: ShoppingCart },
-  { to: '/abonos', label: 'Abonos', icon: WalletCards },
-  { to: '/compradores', label: 'Compradores', icon: Users },
-  { to: '/vendedores', label: 'Vendedores', icon: UserRound },
-  { to: '/reportes', label: 'Reportes', icon: FileBarChart2 }
+const mainNav: Array<{
+  to: string
+  label: string
+  icon: typeof Ticket
+  end?: boolean
+  permission: Permission | null
+}> = [
+  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true, permission: null },
+  { to: '/boletas', label: 'Boletas', icon: Ticket, permission: null },
+  { to: '/boletas-sin-vender', label: 'Boletas sin vender', icon: TicketX, permission: 'unsold:view' },
+  { to: '/nueva-venta', label: 'Nueva Venta', icon: ShoppingCart, permission: 'tickets:sell' },
+  { to: '/abonos', label: 'Abonos', icon: WalletCards, permission: 'payments:create' },
+  { to: '/liquidaciones', label: 'Liquidaciones', icon: HandCoins, permission: 'settlements:manage' },
+  { to: '/compradores', label: 'Compradores', icon: Users, permission: 'buyers:manage' },
+  { to: '/vendedores', label: 'Vendedores', icon: UserRound, permission: 'sellers:manage' },
+  { to: '/reportes', label: 'Reportes', icon: FileBarChart2, permission: 'reports:operational' }
 ]
 
 const adminNav = [
@@ -62,22 +71,24 @@ export function AppShell() {
           <p className="mt-1 text-sm text-brand-100/90">{COMPANY_NAME}</p>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {mainNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                  isActive ? 'bg-white/15 text-white' : 'text-brand-100/85 hover:bg-white/10'
-                )
-              }
-            >
-              <item.icon size={18} />
-              {item.label}
-            </NavLink>
-          ))}
+          {mainNav
+            .filter((item) => !item.permission || can(item.permission))
+            .map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition',
+                    isActive ? 'bg-white/15 text-white' : 'text-brand-100/85 hover:bg-white/10'
+                  )
+                }
+              >
+                <item.icon size={18} />
+                {item.label}
+              </NavLink>
+            ))}
 
           {isAdmin && (
             <div className="pt-4">

@@ -7,6 +7,8 @@ import * as paymentService from '../services/paymentService'
 import * as buyerService from '../services/buyerService'
 import * as sellerService from '../services/sellerService'
 import * as paymentMethodService from '../services/paymentMethodService'
+import * as settlementService from '../services/settlementService'
+import * as unsoldService from '../services/unsoldService'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('auth:login', async (_e, payload) => authService.login(payload))
@@ -39,6 +41,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('paymentMethods:listActive', async () =>
     paymentMethodService.listActivePaymentMethods()
   )
+
+  ipcMain.handle('settlements:create', async (_e, payload) => settlementService.settleTicket(payload))
+  ipcMain.handle('settlements:listPending', async (_e, payload) =>
+    settlementService.listPendingSettlements(payload)
+  )
+  ipcMain.handle('settlements:list', async (_e, payload) => settlementService.listSettlements(payload))
+
+  ipcMain.handle('unsold:listBySeller', async (_e, payload) => unsoldService.listUnsoldBySeller(payload))
 
   ipcMain.handle('dashboard:get', async (_e, payload) =>
     dashboardService.getAdminDashboard(payload)

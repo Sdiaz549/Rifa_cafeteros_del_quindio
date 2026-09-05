@@ -11,6 +11,8 @@ import { NewSalePage } from './features/sales/NewSalePage'
 import { PaymentsPage } from './features/payments/PaymentsPage'
 import { BuyersPage } from './features/buyers/BuyersPage'
 import { SellersPage } from './features/sellers/SellersPage'
+import { SettlementsPage } from './features/settlements/SettlementsPage'
+import { UnsoldTicketsPage } from './features/unsold/UnsoldTicketsPage'
 import { PlaceholderPage } from './features/common/PlaceholderPage'
 import { Toaster } from 'sonner'
 
@@ -35,10 +37,7 @@ export default function App() {
               path="boletas-sin-vender"
               element={
                 <RequirePermission permission="unsold:view">
-                  <PlaceholderPage
-                    title="Boletas sin vender"
-                    description="Agrupación por vendedor, filtros y export Excel."
-                  />
+                  <UnsoldTicketsPage />
                 </RequirePermission>
               }
             />
@@ -55,6 +54,14 @@ export default function App() {
               element={
                 <RequirePermission permission="payments:create">
                   <PaymentsPage />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="liquidaciones"
+              element={
+                <RequirePermission permission="settlements:manage">
+                  <SettlementsPage />
                 </RequirePermission>
               }
             />

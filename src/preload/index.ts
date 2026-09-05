@@ -4,11 +4,14 @@ import type {
   BuyerSummary,
   CreatePaymentInput,
   CreateSaleInput,
+  CreateSettlementInput,
   PaymentMethodSummary,
   PaymentSummary,
   SellerSummary,
   SessionUser,
-  TicketSummary
+  SettlementSummary,
+  TicketSummary,
+  UnsoldBySellerSummary
 } from '../shared/types'
 
 const api = {
@@ -75,6 +78,41 @@ const api = {
   paymentMethods: {
     listActive: (): Promise<ApiResult<PaymentMethodSummary[]>> =>
       ipcRenderer.invoke('paymentMethods:listActive')
+  },
+  settlements: {
+    create: (
+      payload: CreateSettlementInput
+    ): Promise<ApiResult<{ ticket: TicketSummary; settlement: SettlementSummary }>> =>
+      ipcRenderer.invoke('settlements:create', payload),
+    listPending: (payload?: {
+      sellerId?: string
+      query?: string
+      take?: number
+    }): Promise<ApiResult<{ items: TicketSummary[]; total: number; totalAmount: number }>> =>
+      ipcRenderer.invoke('settlements:listPending', payload),
+    list: (payload?: {
+      sellerId?: string
+      query?: string
+      take?: number
+    }): Promise<ApiResult<{ items: SettlementSummary[]; total: number; totalAmount: number }>> =>
+      ipcRenderer.invoke('settlements:list', payload)
+  },
+  unsold: {
+    listBySeller: (payload?: {
+      sellerId?: string
+      query?: string
+      onlyWithSeller?: boolean
+    }): Promise<
+      ApiResult<{
+        groups: UnsoldBySellerSummary[]
+        totals: {
+          unsoldCount: number
+          ticketCount: number
+          unsoldPercent: number
+          withoutSellerCount: number
+        }
+      }>
+    > => ipcRenderer.invoke('unsold:listBySeller', payload)
   },
   dashboard: {
     get: (payload?: { from?: string; to?: string }) =>
