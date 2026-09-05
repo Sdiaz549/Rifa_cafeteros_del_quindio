@@ -4,27 +4,29 @@
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Source Serif 4', ui-serif, Georgia, serif;
 
-  --color-brand-950: #06281e;
-  --color-brand-900: #0f3d2e;
-  --color-brand-800: #145239;
-  --color-brand-700: #1a6b48;
-  --color-brand-600: #218556;
-  --color-brand-100: #e6f4ee;
-  --color-brand-50: #f3faf7;
+  --color-brand-950: #032318;
+  --color-brand-900: #053825;
+  --color-brand-800: #0a4a32;
+  --color-brand-700: #0f5c3e;
+  --color-brand-600: #167a52;
+  --color-brand-500: #1f9a66;
+  --color-brand-100: #e3f3eb;
+  --color-brand-50: #f2faf6;
 
-  --color-accent-red: #c62828;
-  --color-accent-red-dark: #8e1b1b;
+  --color-accent-red: #d32f2f;
+  --color-accent-red-dark: #b71c1c;
+  --color-danger: #d32f2f;
 
   --color-ticket-available: #ffffff;
-  --color-ticket-partial: #fff59d;
+  --color-ticket-partial: #ffe082;
   --color-ticket-paid: #76ff03;
-  --color-ticket-lost: #e53935;
+  --color-ticket-lost: #ef5350;
 
-  --color-surface: #f7faf8;
+  --color-surface: #f3f6f5;
   --color-surface-elevated: #ffffff;
   --color-ink: #14221c;
   --color-ink-muted: #5c6f66;
-  --color-line: #d5e3db;
+  --color-line: #d7e3dc;
 }
 
 @layer base {
@@ -42,10 +44,8 @@
     margin: 0;
     font-family: var(--font-sans);
     color: var(--color-ink);
-    background:
-      radial-gradient(1200px 600px at 10% -10%, #1a6b4833, transparent 55%),
-      radial-gradient(900px 500px at 100% 0%, #c6282818, transparent 45%),
-      var(--color-surface);
+    background: var(--color-surface);
+    -webkit-font-smoothing: antialiased;
   }
 
   button,
@@ -53,6 +53,102 @@
   select,
   textarea {
     font: inherit;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-brand-700) 28%, white);
+  }
+}
+
+@layer components {
+  .app-card {
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    background: var(--color-surface-elevated);
+    box-shadow: 0 8px 24px rgba(5, 56, 37, 0.06);
+  }
+
+  .stat-card {
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    background: white;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 4px 14px rgba(5, 56, 37, 0.04);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: var(--color-brand-800);
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    transition: background 150ms ease;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-brand-700);
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: var(--color-accent-red);
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+  }
+
+  .btn-danger:hover {
+    background: var(--color-accent-red-dark);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-line);
+    background: white;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-brand-800);
+  }
+
+  .btn-ghost:hover {
+    background: var(--color-brand-50);
+  }
+
+  .ticket-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: 0.55rem;
+    border: 1px solid var(--color-line);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 2px rgba(20, 34, 28, 0.04);
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .ticket-cell:hover {
+    z-index: 1;
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 6px 14px rgba(5, 56, 37, 0.12);
   }
 }
 
@@ -64,21 +160,31 @@
   .ticket-disponible {
     background: var(--color-ticket-available);
     border-color: var(--color-line);
+    color: var(--color-ink);
   }
 
   .ticket-en-abonos {
     background: var(--color-ticket-partial);
-    border-color: #f0e060;
+    border-color: #f0c84a;
+    color: #5c4400;
   }
 
   .ticket-cancelada {
     background: var(--color-ticket-paid);
     border-color: #5ed100;
+    color: #1b3d00;
   }
 
   .ticket-perdida {
     background: var(--color-ticket-lost);
+    border-color: #c62828;
     color: white;
-    border-color: #b71c1c;
+  }
+
+  .sidebar-leaf-pattern {
+    background-image:
+      radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.06) 0 18%, transparent 19%),
+      radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.05) 0 12%, transparent 13%),
+      radial-gradient(circle at 50% 100%, rgba(0, 0, 0, 0.12), transparent 55%);
   }
 }
