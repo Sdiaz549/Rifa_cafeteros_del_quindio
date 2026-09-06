@@ -49,6 +49,10 @@ export function canSell(status: TicketStatus): boolean {
   return status === 'DISPONIBLE'
 }
 
+export function canAssign(status: TicketStatus): boolean {
+  return status === 'DISPONIBLE'
+}
+
 export function canSettle(status: TicketStatus, isSettled: boolean): boolean {
   return status === 'CANCELADA' && !isSettled
 }

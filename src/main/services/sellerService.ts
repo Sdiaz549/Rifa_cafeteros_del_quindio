@@ -22,6 +22,7 @@ function mapSeller(s: {
   status: 'ACTIVO' | 'INACTIVO'
   notes: string | null
   tickets?: {
+    number?: number
     status: string
     isSettled: boolean
     totalPaid: number
@@ -44,7 +45,11 @@ function mapSeller(s: {
     lostCount: tickets.filter((t) => t.status === 'PERDIDA').length,
     settledCount: tickets.filter((t) => t.isSettled).length,
     collectedTotal: tickets.reduce((sum, t) => sum + t.totalPaid, 0),
-    pendingTotal: tickets.reduce((sum, t) => sum + t.balanceDue, 0)
+    pendingTotal: tickets.reduce((sum, t) => sum + t.balanceDue, 0),
+    ticketNumbers: tickets
+      .map((t) => t.number)
+      .filter((n): n is number => typeof n === 'number')
+      .sort((a, b) => a - b)
   }
 }
 
@@ -73,7 +78,7 @@ export async function listSellers(input?: {
       },
       include: {
         tickets: {
-          select: { status: true, isSettled: true, totalPaid: true, balanceDue: true }
+          select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
         }
       },
       orderBy: { fullName: 'asc' },
@@ -108,7 +113,7 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
           },
           include: {
             tickets: {
-              select: { status: true, isSettled: true, totalPaid: true, balanceDue: true }
+              select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
             }
           }
         })
@@ -123,7 +128,7 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
           },
           include: {
             tickets: {
-              select: { status: true, isSettled: true, totalPaid: true, balanceDue: true }
+              select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
             }
           }
         })
@@ -155,7 +160,7 @@ export async function getSellerById(id: string): Promise<ApiResult<SellerSummary
       where: { id },
       include: {
         tickets: {
-          select: { status: true, isSettled: true, totalPaid: true, balanceDue: true }
+          select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
         }
       }
     })

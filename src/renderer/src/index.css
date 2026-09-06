@@ -3,6 +3,7 @@
 @theme {
   --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Fraunces', 'Source Serif 4', Georgia, serif;
+  --font-script: 'Great Vibes', cursive;
 
   --color-brand-950: #06150f;
   --color-brand-900: #0b2a1e;
@@ -14,6 +15,10 @@
   --color-brand-100: #dceee6;
   --color-brand-50: #f1f7f4;
 
+  --color-forest: #05411f;
+  --color-dash-bg: #f4f7f6;
+  --color-dash-line: #e4ebe7;
+  --color-dash-muted: #6b7c74;
   --color-gold: #c9a24a;
   --color-gold-soft: #ead7a2;
   --color-cream: #f6f0e6;
@@ -23,7 +28,7 @@
   --color-accent-red-dark: #9b1c1c;
   --color-danger: #c62828;
 
-  --color-ticket-available: #fffdf8;
+  --color-ticket-available: #fff9c4;
   --color-ticket-partial: #ffe082;
   --color-ticket-paid: #8cff4a;
   --color-ticket-lost: #e53935;
@@ -113,6 +118,13 @@
     background: linear-gradient(90deg, var(--color-brand-700), var(--color-gold));
   }
 
+  .dash-card {
+    border: 1px solid var(--color-dash-line);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(5, 65, 31, 0.06);
+  }
+
   .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -200,7 +212,8 @@
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    box-shadow: 0 6px 12px rgba(74, 44, 26, 0.06);
+    content-visibility: auto;
+    contain-intrinsic-size: 52px;
     transition:
       transform 140ms ease,
       box-shadow 140ms ease;
@@ -254,10 +267,33 @@
     font-family: var(--font-display);
   }
 
+  .font-script {
+    font-family: var(--font-script);
+  }
+
+  .login-slogan {
+    font-family: var(--font-script);
+    color: #fff8e1;
+    font-size: clamp(2.5rem, 4vw, 3.55rem);
+    line-height: 1.28;
+    letter-spacing: 0.04em;
+    -webkit-text-stroke: 0.55px #fff8e1;
+    paint-order: stroke fill;
+    text-shadow:
+      1px 0 0 #07160f,
+      -1px 0 0 #07160f,
+      0 1px 0 #07160f,
+      0 -1px 0 #07160f,
+      1px 1px 0 #07160f,
+      -1px 1px 0 #07160f,
+      0 3px 8px rgba(0, 0, 0, 0.45);
+  }
+
   .ticket-disponible {
-    background: var(--color-ticket-available);
-    border-color: var(--color-line);
-    color: var(--color-ink);
+    background: #fff9c4;
+    border-color: #f6e05e;
+    border-style: solid;
+    color: #5c4a00;
   }
 
   .ticket-en-abonos {
@@ -278,11 +314,12 @@
     color: white;
   }
 
-  .sidebar-leaf-pattern {
+  .sidebar-cafetero {
+    background-color: #05411f;
     background-image:
-      radial-gradient(circle at 12% 8%, rgba(201, 162, 74, 0.18) 0 16%, transparent 17%),
-      radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.07) 0 12%, transparent 13%),
-      radial-gradient(circle at 20% 88%, rgba(0, 0, 0, 0.18), transparent 46%);
+      radial-gradient(circle at 14% 6%, rgba(255, 255, 255, 0.1) 0 14%, transparent 15%),
+      radial-gradient(circle at 88% 16%, rgba(141, 209, 79, 0.16) 0 12%, transparent 13%),
+      linear-gradient(180deg, #04351a 0%, #05411f 46%, #0a4a28 100%);
   }
 
   .login-atmosphere {

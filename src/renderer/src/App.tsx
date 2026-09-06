@@ -6,8 +6,6 @@ import { AppShell } from './layouts/AppShell'
 import { HomePage } from './features/home/HomePage'
 import { TicketsPage } from './features/tickets/TicketsPage'
 import { TicketDetailPage } from './features/tickets/TicketDetailPage'
-import { DashboardPage } from './features/dashboard/DashboardPage'
-import { NewSalePage } from './features/sales/NewSalePage'
 import { PaymentsPage } from './features/payments/PaymentsPage'
 import { BuyersPage } from './features/buyers/BuyersPage'
 import { SellersPage } from './features/sellers/SellersPage'
@@ -48,14 +46,7 @@ export default function App() {
                 </RequirePermission>
               }
             />
-            <Route
-              path="nueva-venta"
-              element={
-                <RequirePermission permission="tickets:sell">
-                  <NewSalePage />
-                </RequirePermission>
-              }
-            />
+            <Route path="nueva-venta" element={<Navigate to="/boletas" replace />} />
             <Route
               path="abonos"
               element={
@@ -96,7 +87,7 @@ export default function App() {
                 </RequirePermission>
               }
             />
-            <Route path="admin/dashboard" element={<DashboardPage />} />
+            <Route path="admin/dashboard" element={<Navigate to="/" replace />} />
             <Route
               path="admin/ingresos"
               element={

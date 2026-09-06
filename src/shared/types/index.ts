@@ -71,6 +71,18 @@ export interface SellerSummary {
   settledCount?: number
   collectedTotal?: number
   pendingTotal?: number
+  ticketNumbers?: number[]
+}
+
+export interface AssignTicketInput {
+  ticketNumber: number
+  sellerId?: string
+  seller?: {
+    fullName: string
+    documentId: string
+    phone: string
+    address?: string
+  }
 }
 
 export interface PaymentMethodSummary {
@@ -302,6 +314,58 @@ export interface PublicSettings {
 export interface ChartPoint {
   label: string
   value: number
+}
+
+export interface HomeSaleRow {
+  id: string
+  soldAt: string
+  ticketNumber: number
+  buyerName: string
+  sellerName: string
+  amount: number
+  status: TicketStatus
+}
+
+export interface HomePaymentRow {
+  id: string
+  paidAt: string
+  ticketNumber: number
+  buyerName: string
+  amount: number
+  paymentMethodName: string
+}
+
+export interface HomeTicketStats {
+  total: number
+  vendidas: number
+  disponible: number
+  enAbonos: number
+  cancelada: number
+  perdida: number
+  liquidadas: number
+}
+
+export interface HomeFinance {
+  ingresosHoy: number
+  ingresosHoyDeltaPct: number | null
+  ingresosMes: number
+  ingresosMesDeltaPct: number | null
+  egresosMes: number
+  balanceMes: number
+}
+
+export interface HomeOverview {
+  raffleName: string
+  companyName: string
+  finance: HomeFinance | null
+  tickets: HomeTicketStats
+  charts: {
+    ingresos7Dias: ChartPoint[]
+    estadosBoletas: ChartPoint[]
+    topVendedores: ChartPoint[]
+  }
+  recentSales: HomeSaleRow[]
+  recentPayments: HomePaymentRow[]
 }
 
 export interface DashboardSnapshot {

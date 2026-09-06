@@ -32,6 +32,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('tickets:markLost', async (_e, number: number) =>
     ticketService.markTicketLost(number)
   )
+  ipcMain.handle('tickets:assign', async (_e, payload) => ticketService.assignTicketToSeller(payload))
 
   ipcMain.handle('sales:create', async (_e, payload) => saleService.createSale(payload))
 
@@ -116,4 +117,5 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('dashboard:get', async (_e, payload) =>
     dashboardService.getAdminDashboard(payload)
   )
+  ipcMain.handle('dashboard:home', async () => dashboardService.getHomeOverview())
 }

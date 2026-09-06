@@ -156,7 +156,7 @@ async function main() {
   if (existing === 0) {
     await prisma.ticket.createMany({
       data: Array.from({ length: 100 }, (_, idx) => ({
-        number: idx + 1,
+        number: idx,
         status: TicketStatus.DISPONIBLE,
         sellerId: sellers[idx % sellers.length].id,
         totalAmount: 0,

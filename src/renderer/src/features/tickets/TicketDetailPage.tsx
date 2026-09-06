@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
+import { DEFAULT_TICKET_PRICE } from '@shared/constants'
 import { formatDateCo } from '@shared/dates'
 import type { PaymentSummary, TicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
 import { cn } from '../../lib/cn'
+import { AssignSellerForm } from './AssignSellerForm'
 
 const statusTone: Record<string, string> = {
   DISPONIBLE: 'ticket-disponible',
@@ -16,6 +18,7 @@ const statusTone: Record<string, string> = {
 
 export function TicketDetailPage() {
   const { number } = useParams()
+  const [params] = useSearchParams()
   const { can } = useAuth()
   const [ticket, setTicket] = useState<(TicketSummary & { statusLabel?: string }) | null>(null)
   const [payments, setPayments] = useState<PaymentSummary[]>([])
@@ -47,6 +50,11 @@ export function TicketDetailPage() {
     void load(n)
   }, [number])
 
+  useEffect(() => {
+    if (!ticket || params.get('asignar') !== '1') return
+    document.getElementById('asignar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [ticket, params])
+
   async function onMarkLost() {
     if (!ticket) return
     if (!window.confirm(`¿Marcar la boleta ${String(ticket.number).padStart(4, '0')} como PERDIDA?`)) {
@@ -76,7 +84,9 @@ export function TicketDetailPage() {
 
   if (!ticket) return <p className="text-ink-muted">Cargando…</p>
 
-  const pending = ticket.balanceDue > 0
+  const ticketValue = ticket.totalAmount > 0 ? ticket.totalAmount : DEFAULT_TICKET_PRICE
+  const ticketBalance = ticket.status === 'DISPONIBLE' ? ticketValue : ticket.balanceDue
+  const pending = ticketBalance > 0
 
   return (
     <div className="space-y-5">
@@ -112,7 +122,7 @@ export function TicketDetailPage() {
               </div>
               <div>
                 <dt className="text-ink-muted">Valor total</dt>
-                <dd className="font-medium">{formatCop(ticket.totalAmount)}</dd>
+                <dd className="font-medium">{formatCop(ticketValue)}</dd>
               </div>
               <div>
                 <dt className="text-ink-muted">Total abonado</dt>
@@ -121,7 +131,7 @@ export function TicketDetailPage() {
               <div>
                 <dt className="text-ink-muted">Saldo pendiente</dt>
                 <dd className={cn('font-bold', pending ? 'text-accent-red' : 'text-brand-800')}>
-                  {formatCop(ticket.balanceDue)}
+                  {formatCop(ticketBalance)}
                 </dd>
               </div>
               <div>
@@ -157,13 +167,13 @@ export function TicketDetailPage() {
               {ticket.status === 'EN_ABONOS'
                 ? 'La boleta tiene pagos parciales registrados.'
                 : ticket.status === 'DISPONIBLE'
-                  ? 'Boleta disponible para venta.'
+                  ? 'Boleta disponible. Puede asignarla a un vendedor sin marcarla vendida.'
                   : ticket.status === 'CANCELADA'
                     ? 'Boleta cancelada / pagada en su totalidad.'
                     : 'Boleta marcada como perdida.'}
             </p>
             <p className="mt-4 text-xs uppercase tracking-wide opacity-70">Saldo</p>
-            <p className="font-display text-2xl font-bold">{formatCop(ticket.balanceDue)}</p>
+            <p className="font-display text-2xl font-bold">{formatCop(ticketBalance)}</p>
           </aside>
         </div>
       </div>
@@ -224,12 +234,18 @@ export function TicketDetailPage() {
         </div>
       </section>
 
+      {ticket.status === 'DISPONIBLE' && can('tickets:sell') && (
+        <div className="app-card p-6">
+          <AssignSellerForm
+            ticketNumber={ticket.number}
+            currentSellerName={ticket.sellerName}
+            defaultSellerId={ticket.sellerId}
+            onAssigned={() => void load(ticket.number)}
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
-        {ticket.status === 'DISPONIBLE' && can('tickets:sell') && (
-          <Link to={`/nueva-venta?boleta=${ticket.number}`} className="btn-primary">
-            Editar / vender boleta
-          </Link>
-        )}
         {ticket.status === 'EN_ABONOS' && can('payments:create') && (
           <Link to={`/abonos?boleta=${ticket.number}`} className="btn-primary">
             Registrar abono

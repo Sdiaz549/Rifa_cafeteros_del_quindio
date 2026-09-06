@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Settings } from 'lucide-react'
 import { PageHeader } from '../../components/PageHeader'
-import { parseCopInput, formatCop } from '@shared/money'
+import { formatCop } from '@shared/money'
+import { DEFAULT_TICKET_PRICE } from '@shared/constants'
 import type { AppSettings } from '@shared/types'
 
 export function SettingsPage() {
@@ -10,7 +11,6 @@ export function SettingsPage() {
   const [companyName, setCompanyName] = useState('')
   const [raffleName, setRaffleName] = useState('')
   const [ticketCount, setTicketCount] = useState('10000')
-  const [price, setPrice] = useState('50000')
   const [drawDate, setDrawDate] = useState('')
   const [pad, setPad] = useState('4')
   const [generate, setGenerate] = useState(false)
@@ -26,7 +26,6 @@ export function SettingsPage() {
     setCompanyName(res.data.companyName)
     setRaffleName(res.data.raffleName)
     setTicketCount(String(res.data.ticketCount))
-    setPrice(String(res.data.defaultTicketPrice))
     setDrawDate(res.data.drawDate ? res.data.drawDate.slice(0, 10) : '')
     setPad(String(res.data.ticketNumberPad))
   }
@@ -42,7 +41,6 @@ export function SettingsPage() {
       companyName: companyName.trim(),
       raffleName: raffleName.trim(),
       ticketCount: Number(ticketCount),
-      defaultTicketPrice: parseCopInput(price),
       drawDate: drawDate ? new Date(`${drawDate}T12:00:00`).toISOString() : undefined,
       ticketNumberPad: Number(pad),
       generateMissingTickets: generate
@@ -87,10 +85,18 @@ export function SettingsPage() {
               onChange={(e) => setTicketCount(e.target.value)}
               required
             />
+            <span className="mt-1 block text-xs text-ink-muted">
+              10.000 boletas numeradas del 0000 al 9999.
+            </span>
           </label>
           <label className="text-sm">
-            Valor por defecto ({formatCop(parseCopInput(price) || 0)})
-            <input className="mt-1 w-full" value={price} onChange={(e) => setPrice(e.target.value)} required />
+            Valor de la boleta
+            <p className="mt-1 rounded-xl border border-line bg-brand-50 px-3 py-2.5 font-semibold text-brand-900">
+              {formatCop(DEFAULT_TICKET_PRICE)}
+            </p>
+            <span className="mt-1 block text-xs text-ink-muted">
+              Fijo: $150.000. No se puede modificar.
+            </span>
           </label>
           <label className="text-sm">
             Fecha de sorteo
@@ -110,7 +116,7 @@ export function SettingsPage() {
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} />
-          Generar boletas faltantes hasta la cantidad indicada
+          Generar boletas faltantes (0000 hasta la cantidad − 1)
         </label>
         <p className="text-xs text-ink-muted">
           Los backups automáticos y la carpeta de copias se configuran en Administración → Backups.

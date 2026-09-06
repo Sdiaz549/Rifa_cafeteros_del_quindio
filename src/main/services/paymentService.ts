@@ -12,7 +12,7 @@ import type {
 } from '../../shared/types'
 
 const createPaymentSchema = z.object({
-  ticketNumber: z.number().int().positive(),
+  ticketNumber: z.number().int().nonnegative(),
   amount: z.number().int().positive(),
   paymentMethodId: z.string().min(1),
   paidAt: z.string().optional(),

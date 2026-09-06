@@ -2,12 +2,18 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatCop, parseCopInput } from '@shared/money'
+import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import type { PaymentMethodSummary, TicketSummary } from '@shared/types'
+
+function paddedTicketInput(raw: string): string {
+  const n = parseTicketNumber(raw)
+  return n == null ? raw.replace(/\D/g, '').slice(0, 4) : formatTicketNumber(n)
+}
 
 export function PaymentsPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const [ticketNumber, setTicketNumber] = useState(params.get('boleta') ?? '')
+  const [ticketNumber, setTicketNumber] = useState(() => paddedTicketInput(params.get('boleta') ?? ''))
   const [ticket, setTicket] = useState<TicketSummary | null>(null)
   const [methods, setMethods] = useState<PaymentMethodSummary[]>([])
   const [amount, setAmount] = useState('')
@@ -34,7 +40,7 @@ export function PaymentsPage() {
 
   async function loadTicket(raw: string) {
     const number = Number(raw)
-    if (!Number.isInteger(number) || number <= 0) {
+    if (!Number.isInteger(number) || number < 0) {
       toast.error('Número de boleta inválido')
       return
     }
@@ -47,12 +53,14 @@ export function PaymentsPage() {
       return
     }
     setTicket(res.data)
-    setTicketNumber(String(res.data.number))
+    setTicketNumber(formatTicketNumber(res.data.number))
   }
 
   async function onSearch(e: FormEvent) {
     e.preventDefault()
-    await loadTicket(ticketNumber)
+    const padded = paddedTicketInput(ticketNumber)
+    setTicketNumber(padded)
+    await loadTicket(padded)
   }
 
   async function onSubmit(e: FormEvent) {
@@ -112,9 +120,12 @@ export function PaymentsPage() {
       <form onSubmit={onSearch} className="flex flex-wrap gap-2 rounded-2xl border border-line bg-white p-4">
         <input
           className="min-w-48 flex-1 rounded-xl border border-line px-3 py-2.5"
-          placeholder="Número de boleta"
+          placeholder="0000"
+          inputMode="numeric"
+          maxLength={4}
           value={ticketNumber}
-          onChange={(e) => setTicketNumber(e.target.value)}
+          onChange={(e) => setTicketNumber(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          onBlur={() => setTicketNumber(paddedTicketInput(ticketNumber))}
         />
         <button
           type="submit"

@@ -5,10 +5,15 @@ import { getDatabaseUrl, getDataDir } from './paths'
 import { getPrisma, disconnectPrisma } from './db/client'
 import { runMigrations } from './db/migrate'
 import { maybeBackupOnClose } from './services/backupService'
+import { ensureTicketRange } from './services/ticketService'
+import { appendMediaCommandLineSwitches, grantMicrophoneAccess } from './mediaPermissions'
+
+appendMediaCommandLineSwitches()
 
 let quitting = false
 
 app.whenReady().then(async () => {
+  grantMicrophoneAccess()
   getDataDir()
   process.env.DATABASE_URL = getDatabaseUrl()
 
@@ -22,6 +27,7 @@ app.whenReady().then(async () => {
   try {
     const prisma = getPrisma()
     await prisma.$connect()
+    await ensureTicketRange()
   } catch (error) {
     console.error('[startup] DB connect error', error)
   }

@@ -142,12 +142,7 @@ export function UnsoldTicketsPage() {
                     </div>
                     {g.tickets.length > 0 && (
                       <p className="mt-3 text-xs text-ink-muted">
-                        <Link
-                          to={`/nueva-venta?boleta=${g.tickets[0].number}`}
-                          className="text-brand-800 hover:underline"
-                        >
-                          Ir a nueva venta
-                        </Link>
+                        Abra una boleta para registrar la venta.
                       </p>
                     )}
                   </div>

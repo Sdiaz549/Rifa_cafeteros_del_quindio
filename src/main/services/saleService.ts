@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
+import { DEFAULT_TICKET_PRICE } from '../../shared/constants'
 import { assertNonNegativeMoney } from '../../shared/money'
 import { canSell, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
 import type { ApiResult, CreateSaleInput, TicketSummary } from '../../shared/types'
@@ -15,7 +16,7 @@ const buyerInlineSchema = z.object({
 })
 
 const createSaleSchema = z.object({
-  ticketNumber: z.number().int().positive(),
+  ticketNumber: z.number().int().nonnegative(),
   sellerId: z.string().min(1),
   buyerId: z.string().optional(),
   buyer: buyerInlineSchema.optional(),
@@ -66,10 +67,11 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       return { ok: false, error: 'Datos de venta inválidos.' }
     }
     const input = parsed.data as CreateSaleInput
-    assertNonNegativeMoney(input.amount, 'valor de la boleta')
+    const amount = DEFAULT_TICKET_PRICE
+    assertNonNegativeMoney(amount, 'valor de la boleta')
     assertNonNegativeMoney(input.initialPayment, 'pago inicial')
 
-    if (input.initialPayment > input.amount) {
+    if (input.initialPayment > amount) {
       return { ok: false, error: 'El pago inicial no puede superar el valor de la boleta.' }
     }
     if (!input.buyerId && !input.buyer) {
@@ -133,7 +135,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
 
       const soldAt = input.soldAt ? new Date(input.soldAt) : new Date()
       const financials = recalcTicketFinancials({
-        totalAmount: input.amount,
+        totalAmount: amount,
         totalPaidActive: input.initialPayment,
         currentStatus: 'DISPONIBLE'
       })
@@ -145,7 +147,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
           ticketId: ticket.id,
           buyerId,
           sellerId: seller.id,
-          amount: input.amount,
+          amount: amount,
           soldAt,
           initialPayment: input.initialPayment,
           paymentMethodId: method.id,
@@ -197,7 +199,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
           entityId: sale.id,
           newValue: JSON.stringify({
             ticketNumber: ticket.number,
-            amount: input.amount,
+            amount: amount,
             initialPayment: input.initialPayment,
             buyerId,
             sellerId: seller.id,

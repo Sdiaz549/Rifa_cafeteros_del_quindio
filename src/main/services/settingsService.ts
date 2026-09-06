@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
-import { SETTING_KEYS } from '../../shared/constants'
+import { SETTING_KEYS, DEFAULT_TICKET_PRICE } from '../../shared/constants'
 import { writeAuditLog } from '../audit/auditService'
 import type { ApiResult, AppSettings, PublicSettings } from '../../shared/types'
 
@@ -36,12 +36,11 @@ function asBool(value: string): boolean {
 export async function getPublicSettings(): Promise<ApiResult<PublicSettings>> {
   try {
     requireSession()
-    const [companyName, raffleName, drawDate, defaultTicketPrice, ticketCount, ticketNumberPad] =
+    const [companyName, raffleName, drawDate, ticketCount, ticketNumberPad] =
       await Promise.all([
         readSetting(SETTING_KEYS.companyName, 'Cafeteros del Quindío'),
         readSetting(SETTING_KEYS.raffleName, 'RIFA Cafeteros del Quindío'),
         readSetting(SETTING_KEYS.drawDate, ''),
-        readSetting(SETTING_KEYS.defaultTicketPrice, '50000'),
         readSetting(SETTING_KEYS.ticketCount, '10000'),
         readSetting(SETTING_KEYS.ticketNumberPad, '4')
       ])
@@ -51,7 +50,7 @@ export async function getPublicSettings(): Promise<ApiResult<PublicSettings>> {
         companyName,
         raffleName,
         drawDate,
-        defaultTicketPrice: Number(defaultTicketPrice) || 0,
+        defaultTicketPrice: DEFAULT_TICKET_PRICE,
         ticketCount: Number(ticketCount) || 0,
         ticketNumberPad: Number(ticketNumberPad) || 4
       }
@@ -101,8 +100,7 @@ export async function updateAppSettings(raw: unknown): Promise<ApiResult<AppSett
     if (data.raffleName != null) await writeSetting(SETTING_KEYS.raffleName, data.raffleName, session.userId)
     if (data.ticketCount != null)
       await writeSetting(SETTING_KEYS.ticketCount, String(data.ticketCount), session.userId)
-    if (data.defaultTicketPrice != null)
-      await writeSetting(SETTING_KEYS.defaultTicketPrice, String(data.defaultTicketPrice), session.userId)
+    await writeSetting(SETTING_KEYS.defaultTicketPrice, String(DEFAULT_TICKET_PRICE), session.userId)
     if (data.drawDate != null) await writeSetting(SETTING_KEYS.drawDate, data.drawDate, session.userId)
     if (data.ticketNumberPad != null)
       await writeSetting(SETTING_KEYS.ticketNumberPad, String(data.ticketNumberPad), session.userId)
@@ -112,7 +110,7 @@ export async function updateAppSettings(raw: unknown): Promise<ApiResult<AppSett
       const existing = await prisma.ticket.findMany({ select: { number: true } })
       const have = new Set(existing.map((t) => t.number))
       const missing: { number: number }[] = []
-      for (let n = 1; n <= data.ticketCount; n++) {
+      for (let n = 0; n < data.ticketCount; n++) {
         if (!have.has(n)) missing.push({ number: n })
       }
       const chunk = 500

@@ -5,9 +5,21 @@ import {
   recalcTicketFinancials,
   canAcceptPayment,
   canSell,
-  canSettle
+  canSettle,
+  canAssign
 } from '../src/shared/domain/ticketStatus'
 import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parseCommand'
+import { formatTicketNumber, parseTicketNumber, ticketNumberBounds } from '../src/shared/tickets/numbers'
+
+describe('ticket numbers', () => {
+  it('uses 0000–9999 for 10.000 boletas', () => {
+    expect(ticketNumberBounds(10_000)).toEqual({ first: 0, last: 9999 })
+    expect(formatTicketNumber(0)).toBe('0000')
+    expect(formatTicketNumber(9999)).toBe('9999')
+    expect(parseTicketNumber('0000')).toBe(0)
+    expect(parseTicketNumber('0042')).toBe(42)
+  })
+})
 
 describe('money', () => {
   it('formats COP without decimals', () => {
@@ -56,9 +68,12 @@ describe('ticket financials', () => {
     expect(result.status).toBe('PERDIDA')
   })
 
-  it('gates sell/pay/settle correctly', () => {
+  it('gates sell/pay/settle/assign correctly', () => {
     expect(canSell('DISPONIBLE')).toBe(true)
     expect(canSell('EN_ABONOS')).toBe(false)
+    expect(canAssign('DISPONIBLE')).toBe(true)
+    expect(canAssign('EN_ABONOS')).toBe(false)
+    expect(canAssign('CANCELADA')).toBe(false)
     expect(canAcceptPayment('EN_ABONOS')).toBe(true)
     expect(canAcceptPayment('CANCELADA')).toBe(false)
     expect(canSettle('CANCELADA', false)).toBe(true)

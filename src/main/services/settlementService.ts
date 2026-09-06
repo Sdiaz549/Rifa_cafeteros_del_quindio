@@ -10,7 +10,7 @@ import type {
 } from '../../shared/types'
 
 const settleSchema = z.object({
-  ticketNumber: z.number().int().positive(),
+  ticketNumber: z.number().int().nonnegative(),
   settledAt: z.string().optional(),
   notes: z.string().optional(),
   amount: z.number().int().positive().optional()

@@ -1,5 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { grantMicrophoneAccess } from './mediaPermissions'
 
 export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -14,9 +15,12 @@ export function createMainWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      autoplayPolicy: 'no-user-gesture-required'
     }
   })
+
+  grantMicrophoneAccess(win.webContents.session)
 
   win.on('ready-to-show', () => {
     win.show()

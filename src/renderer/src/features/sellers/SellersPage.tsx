@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
+import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { SellerSummary } from '@shared/types'
 
 const emptyForm = {
@@ -224,6 +225,21 @@ export function SellersPage() {
                 <dt className="text-ink-muted">Pendiente</dt>
                 <dd className="font-medium">{formatCop(selected.pendingTotal ?? 0)}</dd>
               </div>
+              {(selected.ticketNumbers?.length ?? 0) > 0 && (
+                <div className="pt-3">
+                  <dt className="text-ink-muted">Boletas asignadas</dt>
+                  <dd className="mt-2 flex flex-wrap gap-1.5">
+                    {selected.ticketNumbers?.map((n) => (
+                      <span
+                        key={n}
+                        className="rounded-md border border-line bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-900"
+                      >
+                        {formatTicketNumber(n)}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
             </dl>
           )}
         </div>

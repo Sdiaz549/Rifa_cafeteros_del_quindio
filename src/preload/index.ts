@@ -12,6 +12,7 @@ import type {
   CreateSaleInput,
   CreateSettlementInput,
   DashboardSnapshot,
+  HomeOverview,
   ExpenseListResult,
   ExpenseSummary,
   IncomeListResult,
@@ -46,7 +47,17 @@ const api = {
     getByNumber: (number: number) => ipcRenderer.invoke('tickets:getByNumber', number),
     stats: () => ipcRenderer.invoke('tickets:stats'),
     markLost: (number: number): Promise<ApiResult<TicketSummary>> =>
-      ipcRenderer.invoke('tickets:markLost', number)
+      ipcRenderer.invoke('tickets:markLost', number),
+    assign: (payload: {
+      ticketNumber: number
+      sellerId?: string
+      seller?: {
+        fullName: string
+        documentId: string
+        phone: string
+        address?: string
+      }
+    }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke('tickets:assign', payload)
   },
   sales: {
     create: (payload: CreateSaleInput): Promise<ApiResult<TicketSummary>> =>
@@ -241,7 +252,8 @@ const api = {
       period?: 'hoy' | 'semana' | 'mes' | 'anio' | 'rango'
       from?: string
       to?: string
-    }): Promise<ApiResult<DashboardSnapshot>> => ipcRenderer.invoke('dashboard:get', payload)
+    }): Promise<ApiResult<DashboardSnapshot>> => ipcRenderer.invoke('dashboard:get', payload),
+    home: (): Promise<ApiResult<HomeOverview>> => ipcRenderer.invoke('dashboard:home')
   }
 }
 

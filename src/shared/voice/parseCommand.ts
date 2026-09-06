@@ -109,7 +109,7 @@ export function parseVoiceCommand(raw: string): VoiceCommand {
     const method = abonoMatch?.[3]?.trim()
     return {
       action: 'REGISTRAR_ABONO',
-      ticketNumber: ticket && !Number.isNaN(ticket) ? ticket : undefined,
+      ticketNumber: ticket != null && !Number.isNaN(ticket) ? ticket : undefined,
       amount: parseSpanishAmount(amountText.replace(/\bpesos\b/g, '')),
       paymentMethodName: method ? method.replace(/\bpor\b/g, '').trim() : undefined,
       raw
@@ -123,6 +123,10 @@ export function parseVoiceCommand(raw: string): VoiceCommand {
       ticketNumber: boletaMatch ? Number(boletaMatch[1]) : undefined,
       raw
     }
+  }
+
+  if (/^\d{1,4}$/.test(text)) {
+    return { action: 'BUSCAR_BOLETA', ticketNumber: Number(text), raw }
   }
 
   const sellerMatch = text.match(/vendedor(?:a)?\s+(.+)$/)

@@ -3,10 +3,10 @@ import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parse
 import { hasPermission } from '../src/shared/permissions'
 
 describe('voice parser', () => {
-  it('parses ticket search', () => {
-    const cmd = parseVoiceCommand('buscar boleta 0042')
+  it('parses ticket 0000', () => {
+    const cmd = parseVoiceCommand('buscar boleta 0000')
     expect(cmd.action).toBe('BUSCAR_BOLETA')
-    expect(cmd.ticketNumber).toBe(42)
+    expect(cmd.ticketNumber).toBe(0)
   })
 
   it('parses installment command', () => {
@@ -18,6 +18,7 @@ describe('voice parser', () => {
 
   it('parses Spanish amounts', () => {
     expect(parseSpanishAmount('cincuenta mil')).toBe(50000)
+    expect(parseSpanishAmount('ciento cincuenta mil')).toBe(150000)
   })
 })
 
