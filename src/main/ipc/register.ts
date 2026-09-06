@@ -15,6 +15,8 @@ import * as reportService from '../services/reportService'
 import * as excelExportService from '../services/excelExportService'
 import * as backupService from '../services/backupService'
 import * as auditService from '../audit/auditService'
+import * as userService from '../services/userService'
+import * as settingsService from '../services/settingsService'
 import { requireSession } from '../auth/session'
 
 export function registerIpcHandlers(): void {
@@ -47,6 +49,20 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('paymentMethods:listActive', async () =>
     paymentMethodService.listActivePaymentMethods()
+  )
+  ipcMain.handle('paymentMethods:list', async () => paymentMethodService.listPaymentMethods())
+  ipcMain.handle('paymentMethods:upsert', async (_e, payload) =>
+    paymentMethodService.upsertPaymentMethod(payload)
+  )
+
+  ipcMain.handle('users:list', async () => userService.listUsers())
+  ipcMain.handle('users:create', async (_e, payload) => userService.createUser(payload))
+  ipcMain.handle('users:update', async (_e, payload) => userService.updateUser(payload))
+
+  ipcMain.handle('settings:getPublic', async () => settingsService.getPublicSettings())
+  ipcMain.handle('settings:get', async () => settingsService.getAppSettings())
+  ipcMain.handle('settings:update', async (_e, payload) =>
+    settingsService.updateAppSettings(payload)
   )
 
   ipcMain.handle('settlements:create', async (_e, payload) => settlementService.settleTicket(payload))

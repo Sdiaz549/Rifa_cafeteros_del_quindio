@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void (async () => {
       try {
+        if (!window.api?.auth) return
         const res = await window.api.auth.me()
         if (res.ok) setSession(res.data)
       } finally {

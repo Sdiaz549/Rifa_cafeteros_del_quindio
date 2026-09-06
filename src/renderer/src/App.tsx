@@ -18,7 +18,9 @@ import { ExpensesPage } from './features/expenses/ExpensesPage'
 import { ReportsPage } from './features/reports/ReportsPage'
 import { BackupsPage } from './features/backups/BackupsPage'
 import { AuditPage } from './features/audit/AuditPage'
-import { PlaceholderPage } from './features/common/PlaceholderPage'
+import { UsersPage } from './features/users/UsersPage'
+import { PaymentMethodsPage } from './features/paymentMethods/PaymentMethodsPage'
+import { SettingsPage } from './features/settings/SettingsPage'
 import { Toaster } from 'sonner'
 
 export default function App() {
@@ -115,7 +117,7 @@ export default function App() {
               path="admin/usuarios"
               element={
                 <RequirePermission permission="users:manage">
-                  <PlaceholderPage title="Usuarios" description="Administración de usuarios y roles." />
+                  <UsersPage />
                 </RequirePermission>
               }
             />
@@ -123,7 +125,7 @@ export default function App() {
               path="admin/metodos-pago"
               element={
                 <RequirePermission permission="payment_methods:manage">
-                  <PlaceholderPage title="Métodos de pago" description="Catálogo de métodos de pago." />
+                  <PaymentMethodsPage />
                 </RequirePermission>
               }
             />
@@ -139,7 +141,7 @@ export default function App() {
               path="admin/configuracion"
               element={
                 <RequirePermission permission="settings:manage">
-                  <PlaceholderPage title="Configuración" description="Parámetros de la rifa y backups." />
+                  <SettingsPage />
                 </RequirePermission>
               }
             />
@@ -155,7 +157,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" toastOptions={{ className: 'font-sans' }} />
     </AuthProvider>
   )
 }

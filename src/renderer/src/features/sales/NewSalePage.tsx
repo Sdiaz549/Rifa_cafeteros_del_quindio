@@ -115,7 +115,7 @@ export function NewSalePage() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-5 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <form onSubmit={onSubmit} className="app-card space-y-5 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1.5 block font-medium">Número de boleta</span>

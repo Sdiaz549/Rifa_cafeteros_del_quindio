@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ApiResult,
   AuditListResult,
+  AppSettings,
   AuditLogSummary,
   BackupSettings,
   BackupSummary,
@@ -10,18 +11,21 @@ import type {
   CreatePaymentInput,
   CreateSaleInput,
   CreateSettlementInput,
+  DashboardSnapshot,
   ExpenseListResult,
   ExpenseSummary,
   IncomeListResult,
   PaymentMethodSummary,
   PaymentSummary,
+  PublicSettings,
   ReportKind,
   ReportResult,
   SellerSummary,
   SessionUser,
   SettlementSummary,
   TicketSummary,
-  UnsoldBySellerSummary
+  UnsoldBySellerSummary,
+  UserSummary
 } from '../shared/types'
 
 const api = {
@@ -87,7 +91,44 @@ const api = {
   },
   paymentMethods: {
     listActive: (): Promise<ApiResult<PaymentMethodSummary[]>> =>
-      ipcRenderer.invoke('paymentMethods:listActive')
+      ipcRenderer.invoke('paymentMethods:listActive'),
+    list: (): Promise<ApiResult<PaymentMethodSummary[]>> =>
+      ipcRenderer.invoke('paymentMethods:list'),
+    upsert: (payload: {
+      id?: string
+      name: string
+      status?: 'ACTIVO' | 'INACTIVO'
+    }): Promise<ApiResult<PaymentMethodSummary>> =>
+      ipcRenderer.invoke('paymentMethods:upsert', payload)
+  },
+  users: {
+    list: (): Promise<ApiResult<UserSummary[]>> => ipcRenderer.invoke('users:list'),
+    create: (payload: {
+      username: string
+      fullName: string
+      password: string
+      role: 'ADMIN' | 'USER'
+    }): Promise<ApiResult<UserSummary>> => ipcRenderer.invoke('users:create', payload),
+    update: (payload: {
+      id: string
+      fullName?: string
+      password?: string
+      role?: 'ADMIN' | 'USER'
+      isActive?: boolean
+    }): Promise<ApiResult<UserSummary>> => ipcRenderer.invoke('users:update', payload)
+  },
+  settings: {
+    getPublic: (): Promise<ApiResult<PublicSettings>> => ipcRenderer.invoke('settings:getPublic'),
+    get: (): Promise<ApiResult<AppSettings>> => ipcRenderer.invoke('settings:get'),
+    update: (payload: {
+      companyName?: string
+      raffleName?: string
+      ticketCount?: number
+      defaultTicketPrice?: number
+      drawDate?: string
+      ticketNumberPad?: number
+      generateMissingTickets?: boolean
+    }): Promise<ApiResult<AppSettings>> => ipcRenderer.invoke('settings:update', payload)
   },
   settlements: {
     create: (
@@ -196,8 +237,11 @@ const api = {
     listModules: (): Promise<ApiResult<string[]>> => ipcRenderer.invoke('audit:listModules')
   },
   dashboard: {
-    get: (payload?: { from?: string; to?: string }) =>
-      ipcRenderer.invoke('dashboard:get', payload)
+    get: (payload?: {
+      period?: 'hoy' | 'semana' | 'mes' | 'anio' | 'rango'
+      from?: string
+      to?: string
+    }): Promise<ApiResult<DashboardSnapshot>> => ipcRenderer.invoke('dashboard:get', payload)
   }
 }
 

@@ -4,24 +4,16 @@ Aplicación de **escritorio local** (Electron + React + TypeScript + SQLite) par
 
 Funciona **sin Internet**. Un solo computador. Base de datos local.
 
-## Estado actual (Fases 1–4)
+## Qué incluye
 
-- Scaffold Electron + React + Tailwind
-- Prisma/SQLite con esquema completo
-- Login + sesión + permisos reales en proceso main
-- Layout (sidebar, búsqueda global, menú por rol)
-- Boletas (cuadrícula/lista) + detalle
-- Dashboard admin (KPIs)
+- Login, roles ADMIN / USUARIO y permisos reales en el proceso main
+- Boletas (cuadrícula y lista), ventas, abonos, liquidaciones
+- Compradores, vendedores, boletas sin vender
+- Dashboard con filtros de periodo y gráficos
+- Ingresos, egresos, reportes y export Excel
+- Usuarios, métodos de pago, configuración, backups y auditoría
+- Comandos de voz (micrófono en la barra de búsqueda)
 - Seed de desarrollo + tests de dominio
-
-## Documentación de diseño
-
-| Documento | Contenido |
-|-----------|-----------|
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Requisitos e inconsistencias resueltas |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Stack, capas, carpetas |
-| [docs/DATABASE.md](docs/DATABASE.md) | Esquema SQLite / Prisma |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Plan por 20 fases |
 
 ## Requisitos
 
@@ -38,6 +30,14 @@ npx prisma db push
 npm run db:seed
 npm run dev
 ```
+
+La base SQLite queda en `data/rifa.db`. En `.env` use:
+
+```
+DATABASE_URL="file:../data/rifa.db"
+```
+
+(Prisma resuelve esa ruta relativa a la carpeta `prisma/`.)
 
 ### Usuarios seed (solo desarrollo)
 
@@ -59,17 +59,6 @@ npm run dev
 | `npm run dist:win` | Instalador Windows (NSIS) |
 | `npm run db:seed` | Datos de desarrollo |
 | `npm run db:studio` | Prisma Studio |
-
-## Base de datos
-
-- Desarrollo: `data/rifa.db` (ruta vía `DATABASE_URL` / userData en runtime)
-- ORM: Prisma
-- Dinero: enteros COP
-- Soft-delete / `ANULADO` en movimientos financieros
-
-## Próximas fases
-
-Ventas → Abonos → Liquidaciones → Boletas sin vender → Reportes → Excel → Backups → Auditoría UI → Voz → Empaquetado Windows.
 
 ## Licencia
 

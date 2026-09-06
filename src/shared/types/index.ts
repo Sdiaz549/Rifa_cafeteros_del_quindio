@@ -267,3 +267,65 @@ export interface AuditListResult {
   items: AuditLogSummary[]
   total: number
 }
+
+export interface UserSummary {
+  id: string
+  username: string
+  fullName: string
+  role: RoleCode
+  roleName: string
+  isActive: boolean
+  createdAt: string
+}
+
+export interface AppSettings {
+  companyName: string
+  raffleName: string
+  ticketCount: number
+  defaultTicketPrice: number
+  drawDate: string
+  ticketNumberPad: number
+  backupFolder: string
+  autoBackupEnabled: boolean
+  autoBackupOnClose: boolean
+}
+
+export interface PublicSettings {
+  companyName: string
+  raffleName: string
+  drawDate: string
+  defaultTicketPrice: number
+  ticketCount: number
+  ticketNumberPad: number
+}
+
+export interface ChartPoint {
+  label: string
+  value: number
+}
+
+export interface DashboardSnapshot {
+  ingresosDia: number
+  ingresosMes: number
+  ingresosPeriodo: number
+  egresosTotal: number
+  egresosPeriodo: number
+  balance: number
+  recaudado: number
+  porCobrar: number
+  total: number
+  vendidas: number
+  disponible: number
+  enAbonos: number
+  cancelada: number
+  perdida: number
+  liquidadas: number
+  pendienteLiquidacion: number
+  periodFrom: string
+  periodTo: string
+  charts: {
+    ingresosPorDia: ChartPoint[]
+    estadosBoletas: ChartPoint[]
+    metodosPago: ChartPoint[]
+  }
+}

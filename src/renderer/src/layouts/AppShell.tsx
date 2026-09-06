@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -14,13 +14,24 @@ import {
   Search,
   Shield,
   HandCoins,
-  Bell,
-  CalendarDays
+  CalendarDays,
+  Landmark,
+  Receipt,
+  UserCog,
+  CreditCard,
+  ScrollText,
+  Settings,
+  HardDrive,
+  X
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '../features/auth/AuthContext'
 import { APP_NAME, COMPANY_NAME } from '@shared/constants'
+import { parseVoiceCommand } from '@shared/voice/parseCommand'
+import { formatDateCo } from '@shared/dates'
 import { cn } from '../lib/cn'
 import type { Permission } from '@shared/permissions'
+import type { PaymentMethodSummary, PublicSettings } from '@shared/types'
 
 const mainNav: Array<{
   to: string
@@ -40,15 +51,15 @@ const mainNav: Array<{
   { to: '/reportes', label: 'Reportes', icon: FileBarChart2, permission: 'reports:operational' }
 ]
 
-const adminNav = [
-  { to: '/admin/dashboard', label: 'Dashboard' },
-  { to: '/admin/ingresos', label: 'Ingresos' },
-  { to: '/admin/egresos', label: 'Egresos' },
-  { to: '/admin/usuarios', label: 'Usuarios' },
-  { to: '/admin/metodos-pago', label: 'Métodos de pago' },
-  { to: '/admin/auditoria', label: 'Auditoría' },
-  { to: '/admin/configuracion', label: 'Configuración' },
-  { to: '/admin/backups', label: 'Backups' }
+const adminNav: Array<{ to: string; label: string; icon: typeof Shield }> = [
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/ingresos', label: 'Ingresos', icon: Landmark },
+  { to: '/admin/egresos', label: 'Egresos', icon: Receipt },
+  { to: '/admin/usuarios', label: 'Usuarios', icon: UserCog },
+  { to: '/admin/metodos-pago', label: 'Métodos de pago', icon: CreditCard },
+  { to: '/admin/auditoria', label: 'Auditoría', icon: ScrollText },
+  { to: '/admin/configuracion', label: 'Configuración', icon: Settings },
+  { to: '/admin/backups', label: 'Backups', icon: HardDrive }
 ]
 
 function CloverMark({ className }: { className?: string }) {
@@ -62,17 +73,40 @@ function CloverMark({ className }: { className?: string }) {
   )
 }
 
+type VoicePending = {
+  ticketNumber: number
+  amount: number
+  paymentMethodId: string
+  paymentMethodName: string
+}
+
 export function AppShell() {
   const { session, logout, can } = useAuth()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [now, setNow] = useState(() => new Date())
+  const [settings, setSettings] = useState<PublicSettings | null>(null)
+  const [listening, setListening] = useState(false)
+  const [pendingVoice, setPendingVoice] = useState<VoicePending | null>(null)
+  const [methods, setMethods] = useState<PaymentMethodSummary[]>([])
+  const recognitionRef = useRef<{ stop: () => void } | null>(null)
   const isAdmin = session?.role === 'ADMIN'
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    void window.api.settings.getPublic().then((res) => {
+      if (res.ok) setSettings(res.data)
+    })
+    if (can('payments:create')) {
+      void window.api.paymentMethods.listActive().then((res) => {
+        if (res.ok) setMethods(res.data)
+      })
+    }
+  }, [can])
 
   const dateLabel = useMemo(
     () =>
@@ -93,6 +127,130 @@ export function AppShell() {
     navigate(`/boletas?q=${encodeURIComponent(q)}`)
   }
 
+  const runVoice = useCallback(
+    async (raw: string) => {
+      const cmd = parseVoiceCommand(raw)
+      if (cmd.action === 'BUSCAR_BOLETA' && cmd.ticketNumber) {
+        navigate(`/boletas/${cmd.ticketNumber}`)
+        toast.success(`Boleta ${String(cmd.ticketNumber).padStart(4, '0')}`)
+        return
+      }
+      if (cmd.action === 'MOSTRAR_SIN_VENDER') {
+        navigate('/boletas-sin-vender')
+        return
+      }
+      if (cmd.action === 'MOSTRAR_EN_ABONOS') {
+        navigate('/boletas?q=&status=EN_ABONOS')
+        navigate('/boletas')
+        return
+      }
+      if (cmd.action === 'MOSTRAR_PERDIDAS') {
+        navigate('/boletas')
+        return
+      }
+      if (cmd.action === 'MOSTRAR_LIQUIDADAS') {
+        navigate('/liquidaciones')
+        return
+      }
+      if (cmd.action === 'BUSCAR_VENDEDOR') {
+        navigate(`/vendedores`)
+        return
+      }
+      if (cmd.action === 'REGISTRAR_ABONO') {
+        if (!cmd.ticketNumber || !cmd.amount) {
+          toast.error('Diga: abono de 20000 a la boleta 12 por Nequi')
+          return
+        }
+        const match = cmd.paymentMethodName
+          ? methods.find((m) => m.name.toLowerCase().includes(cmd.paymentMethodName!.toLowerCase()))
+          : methods[0]
+        if (!match) {
+          toast.error('No hay métodos de pago activos')
+          return
+        }
+        setPendingVoice({
+          ticketNumber: cmd.ticketNumber,
+          amount: cmd.amount,
+          paymentMethodId: match.id,
+          paymentMethodName: match.name
+        })
+        return
+      }
+      toast.message(`No entendí: “${raw}”`)
+    },
+    [methods, navigate]
+  )
+
+  function toggleVoice() {
+    const Ctor = (
+      window as unknown as {
+        webkitSpeechRecognition?: new () => {
+          lang: string
+          interimResults: boolean
+          maxAlternatives: number
+          onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
+          onerror: (() => void) | null
+          onend: (() => void) | null
+          start: () => void
+          stop: () => void
+        }
+        SpeechRecognition?: new () => {
+          lang: string
+          interimResults: boolean
+          maxAlternatives: number
+          onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
+          onerror: (() => void) | null
+          onend: (() => void) | null
+          start: () => void
+          stop: () => void
+        }
+      }
+    ).webkitSpeechRecognition ?? (window as unknown as { SpeechRecognition?: new () => never }).SpeechRecognition
+
+    if (!Ctor) {
+      toast.error('El reconocimiento de voz no está disponible en este equipo.')
+      return
+    }
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+    const rec = new Ctor()
+    rec.lang = 'es-CO'
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    rec.onresult = (event) => {
+      const text = event.results[0]?.[0]?.transcript ?? ''
+      void runVoice(text)
+    }
+    rec.onerror = () => {
+      setListening(false)
+      toast.error('No se pudo escuchar. Revise el micrófono.')
+    }
+    rec.onend = () => setListening(false)
+    recognitionRef.current = rec
+    setListening(true)
+    rec.start()
+  }
+
+  async function confirmVoicePayment() {
+    if (!pendingVoice) return
+    const res = await window.api.payments.create({
+      ticketNumber: pendingVoice.ticketNumber,
+      amount: pendingVoice.amount,
+      paymentMethodId: pendingVoice.paymentMethodId,
+      origin: 'VOZ'
+    })
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success('Abono por voz registrado')
+    setPendingVoice(null)
+    navigate(`/boletas/${pendingVoice.ticketNumber}`)
+  }
+
   const initials = (session?.fullName ?? 'U')
     .split(/\s+/)
     .slice(0, 2)
@@ -101,15 +259,19 @@ export function AppShell() {
 
   return (
     <div className="flex h-full min-h-0 bg-surface">
-      <aside className="sidebar-leaf-pattern relative flex w-[17.5rem] shrink-0 flex-col bg-gradient-to-b from-brand-950 via-brand-900 to-brand-800 text-white">
+      <aside className="sidebar-leaf-pattern relative flex w-[17.75rem] shrink-0 flex-col bg-gradient-to-b from-brand-950 via-brand-900 to-brand-800 text-white">
         <div className="border-b border-white/10 px-5 py-5">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 grid h-11 w-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <CloverMark className="h-7 w-7 text-[#7CFF6B]" />
+            <div className="mt-0.5 grid h-12 w-12 place-items-center rounded-2xl bg-white/10 ring-1 ring-gold/40">
+              <CloverMark className="h-7 w-7 text-gold-soft" />
             </div>
             <div className="min-w-0">
-              <p className="font-display text-2xl font-bold leading-none tracking-tight">{APP_NAME}</p>
-              <p className="mt-1 text-sm font-medium text-brand-100">{COMPANY_NAME}</p>
+              <p className="font-display text-[1.7rem] font-semibold leading-none tracking-tight">
+                {APP_NAME}
+              </p>
+              <p className="mt-1 text-sm font-medium text-gold-soft">
+                {settings?.companyName ?? COMPANY_NAME}
+              </p>
               <p className="mt-1 text-[11px] italic text-white/55">Jugamos por grandes sueños</p>
             </div>
           </div>
@@ -127,7 +289,7 @@ export function AppShell() {
                   cn(
                     'group relative flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                     isActive
-                      ? 'bg-white/15 text-white shadow-inner'
+                      ? 'bg-white/12 text-white shadow-inner'
                       : 'text-brand-100/85 hover:bg-white/10'
                   )
                 }
@@ -135,9 +297,9 @@ export function AppShell() {
                 {({ isActive }) => (
                   <>
                     {isActive && (
-                      <span className="absolute top-1/2 left-0 h-6 w-1 -translate-y-1/2 rounded-r-full bg-white" />
+                      <span className="absolute top-1/2 left-0 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gold" />
                     )}
-                    <item.icon size={18} className={isActive ? 'text-[#9AFF7A]' : 'opacity-90'} />
+                    <item.icon size={18} className={isActive ? 'text-gold-soft' : 'opacity-90'} />
                     {item.label}
                   </>
                 )}
@@ -146,7 +308,7 @@ export function AppShell() {
 
           {isAdmin && (
             <div className="pt-4">
-              <div className="mb-2 flex items-center gap-2 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-100/55">
+              <div className="mb-2 flex items-center gap-2 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-soft/80">
                 <Shield size={13} />
                 Administración
               </div>
@@ -156,11 +318,12 @@ export function AppShell() {
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      'relative block rounded-xl px-3 py-2 text-sm transition',
-                      isActive ? 'bg-white/15 text-white' : 'text-brand-100/85 hover:bg-white/10'
+                      'relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition',
+                      isActive ? 'bg-white/12 text-white' : 'text-brand-100/85 hover:bg-white/10'
                     )
                   }
                 >
+                  <item.icon size={16} className="opacity-80" />
                   {item.label}
                 </NavLink>
               ))}
@@ -169,13 +332,17 @@ export function AppShell() {
         </nav>
 
         <div className="space-y-3 border-t border-white/10 p-4">
-          <div className="rounded-2xl bg-white p-3 text-ink shadow-lg shadow-black/20">
+          <div className="rounded-2xl bg-[#fffaf2] p-3 text-ink shadow-lg shadow-black/20">
             <div className="flex items-center gap-2 text-brand-800">
               <CalendarDays size={16} />
               <p className="text-[11px] font-semibold uppercase tracking-wide">Sorteo</p>
             </div>
-            <p className="mt-1 font-display text-lg font-bold text-brand-900">Próximamente</p>
-            <p className="text-xs text-ink-muted">Configure la fecha en Administración</p>
+            <p className="mt-1 font-display text-lg font-semibold text-brand-900">
+              {settings?.drawDate ? formatDateCo(settings.drawDate) : 'Por definir'}
+            </p>
+            <p className="text-xs text-ink-muted">
+              {settings?.raffleName ?? 'Configure la fecha en Administración'}
+            </p>
           </div>
 
           <button
@@ -194,7 +361,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-4 border-b border-line bg-brand-900 px-5 py-3 text-white shadow-md shadow-brand-950/20">
+        <header className="flex items-center gap-4 border-b border-brand-950/30 bg-gradient-to-r from-brand-950 via-brand-900 to-brand-800 px-5 py-3 text-white shadow-md shadow-brand-950/20">
           <form onSubmit={onSearch} className="flex min-w-0 flex-1 items-center gap-2">
             <div className="relative w-full max-w-2xl">
               <Search
@@ -205,13 +372,17 @@ export function AppShell() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar número, comprador, cédula o vendedor…"
-                className="w-full rounded-full border-0 bg-white py-2.5 pr-4 pl-10 text-sm text-ink outline-none ring-0 placeholder:text-ink-muted"
+                className="w-full rounded-full border-0 bg-[#fffaf2] py-2.5 pr-4 pl-10 text-sm text-ink outline-none ring-0 placeholder:text-ink-muted"
               />
             </div>
             <button
               type="button"
-              title="Comandos de voz (próximamente)"
-              className="rounded-full bg-white/10 p-2.5 text-white hover:bg-white/15"
+              title="Comandos de voz"
+              onClick={toggleVoice}
+              className={cn(
+                'rounded-full p-2.5 text-white transition',
+                listening ? 'bg-accent-red animate-pulse' : 'bg-white/10 hover:bg-white/15'
+              )}
             >
               <Mic size={18} />
             </button>
@@ -222,17 +393,8 @@ export function AppShell() {
             <span>{dateLabel}</span>
           </div>
 
-          <button
-            type="button"
-            className="relative rounded-full bg-white/10 p-2.5 hover:bg-white/15"
-            title="Notificaciones"
-          >
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent-red ring-2 ring-brand-900" />
-          </button>
-
           <div className="flex items-center gap-2.5 rounded-full bg-white/10 py-1.5 pr-3 pl-1.5">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#7CFF6B] text-xs font-bold text-brand-950">
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-gold text-xs font-bold text-brand-950">
               {initials || 'U'}
             </div>
             <div className="hidden min-w-0 sm:block">
@@ -244,21 +406,49 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-auto p-5 md:p-6">
+        <main className="min-h-0 flex-1 overflow-auto p-5 md:p-7">
           <Outlet />
         </main>
 
-        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-white px-5 py-2 text-[11px] text-ink-muted">
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-[#fffaf2] px-5 py-2 text-[11px] text-ink-muted">
           <p>Sistema de Gestión de Rifas v1.0</p>
           <p className="inline-flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-brand-600" />
             Base de datos: Local
           </p>
           <p className="hidden sm:block">
-            {COMPANY_NAME} · Disciplina · Pasión · Grandes Sueños
+            {settings?.companyName ?? COMPANY_NAME} · Disciplina · Pasión · Grandes Sueños
           </p>
         </footer>
       </div>
+
+      {pendingVoice && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+          <div className="app-card w-full max-w-md p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="page-kicker">Confirmación de voz</p>
+                <h2 className="font-display mt-1 text-2xl text-brand-900">¿Registrar abono?</h2>
+              </div>
+              <button type="button" className="btn-ghost px-2 py-2" onClick={() => setPendingVoice(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <p className="mt-4 text-sm text-ink-muted">
+              Boleta <strong>{String(pendingVoice.ticketNumber).padStart(4, '0')}</strong> ·{' '}
+              {pendingVoice.amount.toLocaleString('es-CO')} COP · {pendingVoice.paymentMethodName}
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" className="btn-ghost" onClick={() => setPendingVoice(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn-primary" onClick={() => void confirmVoicePayment()}>
+                Confirmar abono
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

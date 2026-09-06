@@ -4,6 +4,7 @@ import { Grid2X2, List, Ticket } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
 import { cn } from '../../lib/cn'
+import { PageHeader } from '../../components/PageHeader'
 
 const statusClass: Record<TicketStatus, string> = {
   DISPONIBLE: 'ticket-disponible',
@@ -92,17 +93,11 @@ export function TicketsPage() {
     <div className="space-y-5">
       <div className="app-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-brand-100 text-brand-800">
-              <Ticket size={22} />
-            </div>
-            <div>
-              <h1 className="font-display text-3xl font-bold text-brand-900">Boletas</h1>
-              <p className="text-sm text-ink-muted">
-                Visualice el estado de todas las boletas de la rifa.
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            icon={<Ticket size={22} />}
+            title="Boletas"
+            description="Visualice el estado de todas las boletas de la rifa."
+          />
           <div className="inline-flex overflow-hidden rounded-xl border border-line bg-white text-sm">
             <button
               type="button"

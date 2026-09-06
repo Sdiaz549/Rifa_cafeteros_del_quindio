@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Users } from 'lucide-react'
 import { formatCop } from '@shared/money'
 import type { BuyerSummary } from '@shared/types'
+import { PageHeader } from '../../components/PageHeader'
 
 const emptyForm = {
   fullName: '',
@@ -62,13 +64,14 @@ export function BuyersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold text-brand-900">Compradores</h1>
-        <p className="text-sm text-ink-muted">Crear, editar y buscar compradores por cédula o nombre.</p>
-      </div>
+      <PageHeader
+        icon={<Users size={22} />}
+        title="Compradores"
+        description="Crear, editar y buscar compradores por cédula o nombre."
+      />
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-line bg-white p-5">
+        <form onSubmit={onSubmit} className="app-card space-y-3 p-5">
           <h2 className="font-semibold text-brand-900">Nuevo / actualizar</h2>
           <input
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
@@ -125,9 +128,9 @@ export function BuyersPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <div className="overflow-hidden rounded-2xl border border-line bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-50 text-ink-muted">
+          <div className="app-card overflow-hidden">
+            <table className="data-table">
+              <thead>
                 <tr>
                   <th className="px-4 py-3 font-medium">Nombre</th>
                   <th className="px-4 py-3 font-medium">Cédula</th>
