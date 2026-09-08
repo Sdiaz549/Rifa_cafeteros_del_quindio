@@ -1,7 +1,7 @@
 export const APP_NAME = 'RIFA'
 export const COMPANY_NAME = 'Cafeteros del Quindío'
 export const DEFAULT_TICKET_COUNT = 10_000
-export const DEFAULT_TICKET_PRICE = 150_000
+export const DEFAULT_TICKET_PRICE = 50_000
 export const TICKET_NUMBER_PAD = 4
 
 export const SETTING_KEYS = {

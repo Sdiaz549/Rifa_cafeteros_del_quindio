@@ -95,7 +95,7 @@ export function SettingsPage() {
               {formatCop(DEFAULT_TICKET_PRICE)}
             </p>
             <span className="mt-1 block text-xs text-ink-muted">
-              Fijo: $150.000. No se puede modificar.
+              Fijo: $50.000. No se puede modificar.
             </span>
           </label>
           <label className="text-sm">
