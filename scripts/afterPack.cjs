@@ -1,21 +1,40 @@
-const { cpSync, existsSync, mkdirSync } = require('node:fs')
+const { cpSync, existsSync, mkdirSync, rmSync } = require('node:fs')
 const { join } = require('node:path')
 
 /**
- * electron-builder ignores dotfolders (`.prisma`) by default.
- * Copy generated Prisma client + engines into the unpacked app.
+ * electron-builder ignores `.prisma` and may leave `@prisma/client` resolving
+ * from inside app.asar, where `.prisma/client` is invisible.
+ *
+ * We force both packages into app.asar.unpacked/node_modules so createRequire
+ * from the unpacked client can resolve the generated client + engines.
  */
 exports.default = async function afterPack(context) {
   const projectDir = context.packager.projectDir
-  const appOutDir = context.appOutDir
-  const src = join(projectDir, 'node_modules', '.prisma')
-  const dest = join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', '.prisma')
+  const unpackModules = join(
+    context.appOutDir,
+    'resources',
+    'app.asar.unpacked',
+    'node_modules'
+  )
 
-  if (!existsSync(src)) {
-    throw new Error(`[afterPack] missing ${src} — run prisma generate first`)
+  const copies = [
+    {
+      src: join(projectDir, 'node_modules', '.prisma'),
+      dest: join(unpackModules, '.prisma')
+    },
+    {
+      src: join(projectDir, 'node_modules', '@prisma', 'client'),
+      dest: join(unpackModules, '@prisma', 'client')
+    }
+  ]
+
+  for (const { src, dest } of copies) {
+    if (!existsSync(src)) {
+      throw new Error(`[afterPack] missing ${src} — run prisma generate first`)
+    }
+    mkdirSync(join(dest, '..'), { recursive: true })
+    rmSync(dest, { recursive: true, force: true })
+    cpSync(src, dest, { recursive: true })
+    console.log(`[afterPack] copied ${src} → ${dest}`)
   }
-
-  mkdirSync(join(dest, '..'), { recursive: true })
-  cpSync(src, dest, { recursive: true })
-  console.log(`[afterPack] copied Prisma client → ${dest}`)
 }

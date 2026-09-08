@@ -1,11 +1,32 @@
 import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { app } from 'electron'
 
 /**
- * @prisma/client is CommonJS. Named ESM imports break in the packaged Electron
- * main process ("Named export 'X' not found"). Use require() instead.
+ * @prisma/client is CommonJS. In the packaged app it must load from
+ * app.asar.unpacked so the sibling `.prisma/client` (engines + generated
+ * client) resolves correctly.
  */
-const require = createRequire(import.meta.url)
-const prismaClient = require('@prisma/client') as typeof import('@prisma/client')
+function loadPrismaClient(): typeof import('@prisma/client') {
+  if (app.isPackaged) {
+    const unpackedClientDir = join(
+      process.resourcesPath,
+      'app.asar.unpacked',
+      'node_modules',
+      '@prisma',
+      'client'
+    )
+    const entry = join(unpackedClientDir, 'default.js')
+    if (existsSync(entry)) {
+      return createRequire(entry)(unpackedClientDir) as typeof import('@prisma/client')
+    }
+  }
+
+  return createRequire(import.meta.url)('@prisma/client') as typeof import('@prisma/client')
+}
+
+const prismaClient = loadPrismaClient()
 
 export const PrismaClient = prismaClient.PrismaClient
 export const RoleCode = prismaClient.RoleCode

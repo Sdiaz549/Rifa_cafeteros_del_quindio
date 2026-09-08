@@ -1,6 +1,6 @@
 {
   "name": "rifa-cafeteros-del-quindio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sistema de gestión de rifas — Cafeteros del Quindío",
   "main": "./out/main/index.js",
   "author": "Cafeteros del Quindío",

@@ -10,8 +10,10 @@ files:
   - prisma/schema.prisma
   - prisma/init.sql
   - package.json
-  # electron-builder ignores dotfolders by default — Prisma engines live in .prisma
-  - node_modules/.prisma/**/*
+  - from: node_modules/.prisma
+    to: node_modules/.prisma
+  - from: node_modules/@prisma/client
+    to: node_modules/@prisma/client
 asar: true
 asarUnpack:
   - '**/*.{node,dll}'
