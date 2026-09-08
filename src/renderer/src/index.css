@@ -1,0 +1,354 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces', 'Source Serif 4', Georgia, serif;
+  --font-script: 'Great Vibes', cursive;
+
+  --color-brand-950: #06150f;
+  --color-brand-900: #0b2a1e;
+  --color-brand-800: #123d2c;
+  --color-brand-700: #1a5440;
+  --color-brand-600: #227056;
+  --color-brand-500: #2f8d6c;
+  --color-brand-400: #4caf88;
+  --color-brand-100: #dceee6;
+  --color-brand-50: #f1f7f4;
+
+  --color-forest: #05411f;
+  --color-dash-bg: #f4f7f6;
+  --color-dash-line: #e4ebe7;
+  --color-dash-muted: #6b7c74;
+  --color-gold: #c9a24a;
+  --color-gold-soft: #ead7a2;
+  --color-cream: #f6f0e6;
+  --color-coffee: #4a2c1a;
+
+  --color-accent-red: #c62828;
+  --color-accent-red-dark: #9b1c1c;
+  --color-danger: #c62828;
+
+  --color-ticket-available: #fff9c4;
+  --color-ticket-partial: #ffe082;
+  --color-ticket-paid: #8cff4a;
+  --color-ticket-lost: #e53935;
+
+  --color-surface: #efe6d6;
+  --color-surface-elevated: #fffaf2;
+  --color-ink: #1c1712;
+  --color-ink-muted: #6b5e50;
+  --color-line: #e2d4bf;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, rgba(201, 162, 74, 0.14), transparent 50%),
+      radial-gradient(900px 420px at 100% 0%, rgba(18, 61, 44, 0.1), transparent 46%),
+      var(--color-surface);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-gold) 40%, white);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--color-brand-800) 45%, white);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .app-card {
+    border: 1px solid var(--color-line);
+    border-radius: 1.25rem;
+    background: linear-gradient(180deg, #fffdf8 0%, var(--color-surface-elevated) 100%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.8) inset,
+      0 18px 40px rgba(74, 44, 26, 0.06);
+  }
+
+  .stat-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: 1.15rem;
+    background: #fffdf8;
+    padding: 1.05rem 1.15rem;
+    box-shadow: 0 10px 24px rgba(74, 44, 26, 0.05);
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-brand-700), var(--color-gold));
+  }
+
+  .dash-card {
+    border: 1px solid var(--color-dash-line);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(5, 65, 31, 0.06);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, var(--color-brand-700), var(--color-brand-900));
+    padding: 0.7rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    box-shadow: 0 10px 20px rgba(11, 42, 30, 0.18);
+    transition:
+      transform 150ms ease,
+      filter 150ms ease;
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, #e53935, var(--color-accent-red-dark));
+    padding: 0.7rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+  }
+
+  .btn-danger:hover {
+    filter: brightness(1.05);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.9rem;
+    border: 1px solid var(--color-line);
+    background: #fffdf8;
+    padding: 0.7rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-brand-800);
+  }
+
+  .btn-ghost:hover {
+    background: var(--color-brand-50);
+  }
+
+  .field {
+    display: block;
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid var(--color-line);
+    background: #fffdf8;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    outline: none;
+    transition:
+      box-shadow 150ms ease,
+      border-color 150ms ease;
+  }
+
+  .field:focus {
+    border-color: var(--color-brand-600);
+    box-shadow: 0 0 0 4px rgba(34, 112, 86, 0.12);
+  }
+
+  .ticket-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1.15 / 1;
+    border-radius: 0.7rem;
+    border: 1px dashed rgba(74, 44, 26, 0.18);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    content-visibility: auto;
+    contain-intrinsic-size: 52px;
+    transition:
+      transform 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .ticket-cell:hover {
+    z-index: 1;
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 12px 22px rgba(11, 42, 30, 0.16);
+  }
+
+  .data-table {
+    width: 100%;
+    text-align: left;
+    font-size: 0.875rem;
+  }
+
+  .data-table thead {
+    background: linear-gradient(180deg, #f7f0e4, #efe4d2);
+    color: var(--color-ink-muted);
+  }
+
+  .data-table th {
+    padding: 0.8rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .data-table td {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--color-line);
+  }
+
+  .data-table tbody tr:hover {
+    background: rgba(18, 61, 44, 0.035);
+  }
+
+  .page-kicker {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-gold);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-script {
+    font-family: var(--font-script);
+  }
+
+  .login-slogan {
+    font-family: var(--font-script);
+    color: #fff8e1;
+    font-size: clamp(2.5rem, 4vw, 3.55rem);
+    line-height: 1.28;
+    letter-spacing: 0.04em;
+    -webkit-text-stroke: 0.55px #fff8e1;
+    paint-order: stroke fill;
+    text-shadow:
+      1px 0 0 #07160f,
+      -1px 0 0 #07160f,
+      0 1px 0 #07160f,
+      0 -1px 0 #07160f,
+      1px 1px 0 #07160f,
+      -1px 1px 0 #07160f,
+      0 3px 8px rgba(0, 0, 0, 0.45);
+  }
+
+  .ticket-disponible {
+    background: #fff9c4;
+    border-color: #f6e05e;
+    border-style: solid;
+    color: #5c4a00;
+  }
+
+  .ticket-en-abonos {
+    background: var(--color-ticket-partial);
+    border-color: #f0c84a;
+    color: #5c4400;
+  }
+
+  .ticket-cancelada {
+    background: var(--color-ticket-paid);
+    border-color: #5ed100;
+    color: #1b3d00;
+  }
+
+  .ticket-perdida {
+    background: var(--color-ticket-lost);
+    border-color: #b71c1c;
+    color: white;
+  }
+
+  .sidebar-cafetero {
+    background-color: #05411f;
+    background-image:
+      radial-gradient(circle at 14% 6%, rgba(255, 255, 255, 0.1) 0 14%, transparent 15%),
+      radial-gradient(circle at 88% 16%, rgba(141, 209, 79, 0.16) 0 12%, transparent 13%),
+      linear-gradient(180deg, #04351a 0%, #05411f 46%, #0a4a28 100%);
+  }
+
+  .login-atmosphere {
+    background:
+      radial-gradient(900px 480px at 15% 20%, rgba(201, 162, 74, 0.22), transparent 50%),
+      radial-gradient(700px 420px at 90% 80%, rgba(255, 255, 255, 0.08), transparent 42%),
+      linear-gradient(165deg, #07150f 0%, #123d2c 48%, #1f4d38 100%);
+  }
+
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-gold), transparent);
+  }
+}
+
+main input:not([type='checkbox']):not([type='radio']):not([type='range']),
+main select,
+main textarea {
+  border-radius: 0.9rem;
+  border: 1px solid var(--color-line);
+  background: #fffdf8;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+main input:focus,
+main select:focus,
+main textarea:focus {
+  border-color: var(--color-brand-600);
+  box-shadow: 0 0 0 4px rgba(34, 112, 86, 0.12);
+}
