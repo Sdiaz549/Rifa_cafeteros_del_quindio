@@ -48,7 +48,7 @@ export async function listTickets(input?: {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
     const prisma = getPrisma()
-    const take = Math.min(Math.max(input?.take ?? 400, 1), 10_000)
+    const take = Math.min(Math.max(input?.take ?? 200, 1), 500)
     const skip = Math.max(input?.skip ?? 0, 0)
     const q = input?.query?.trim()
 
@@ -68,7 +68,20 @@ export async function listTickets(input?: {
     const [items, total] = await Promise.all([
       prisma.ticket.findMany({
         where,
-        include: { seller: true, buyer: true },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          isSettled: true,
+          sellerId: true,
+          buyerId: true,
+          totalAmount: true,
+          totalPaid: true,
+          balanceDue: true,
+          soldAt: true,
+          seller: { select: { fullName: true } },
+          buyer: { select: { fullName: true } }
+        },
         orderBy: { number: 'asc' },
         take,
         skip
@@ -334,7 +347,16 @@ export async function ensureTicketRange(): Promise<number> {
   const setting = await prisma.setting.findUnique({ where: { key: SETTING_KEYS.ticketCount } })
   const count = Number(setting?.value) || DEFAULT_TICKET_COUNT
   const { first, last } = ticketNumberBounds(count)
-  const existing = await prisma.ticket.findMany({ select: { number: true } })
+  const expected = last - first + 1
+  const existingCount = await prisma.ticket.count({
+    where: { number: { gte: first, lte: last } }
+  })
+  if (existingCount >= expected) return 0
+
+  const existing = await prisma.ticket.findMany({
+    where: { number: { gte: first, lte: last } },
+    select: { number: true }
+  })
   const have = new Set(existing.map((t) => t.number))
   const missing: { number: number }[] = []
   for (let n = first; n <= last; n++) {
