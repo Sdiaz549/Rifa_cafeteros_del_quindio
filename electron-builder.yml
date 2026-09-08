@@ -1,21 +1,47 @@
 appId: com.cafeteros.rifa
-productName: Rifa Cafeteros del Quindío
+productName: Rifa Cafeteros del Quindio
+copyright: Copyright © Cafeteros del Quindío
 directories:
   buildResources: resources
   output: release
+afterPack: scripts/afterPack.cjs
 files:
   - out/**/*
-  - prisma/**/*
+  - prisma/schema.prisma
+  - prisma/init.sql
   - package.json
+  # electron-builder ignores dotfolders by default — Prisma engines live in .prisma
+  - node_modules/.prisma/**/*
+asar: true
 asarUnpack:
+  - '**/*.{node,dll}'
   - node_modules/.prisma/**/*
   - node_modules/@prisma/client/**/*
+  - node_modules/@prisma/engines/**/*
+extraResources:
+  - from: prisma/init.sql
+    to: prisma/init.sql
+  - from: prisma/schema.prisma
+    to: prisma/schema.prisma
 win:
+  icon: resources/icon.png
   target:
     - target: nsis
       arch:
         - x64
+    - target: portable
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-Setup.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
   shortcutName: Rifa Cafeteros
+  uninstallDisplayName: Rifa Cafeteros del Quindio
+  installerLanguages:
+    - es_ES
+  language: '3082'
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
