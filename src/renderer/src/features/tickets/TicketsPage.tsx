@@ -9,7 +9,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { useAuth } from '../auth/AuthContext'
 import { AssignSellerForm } from './AssignSellerForm'
 
-const PAGE_SIZE = 500
+const PAGE_SIZE = 200
 
 const statusClass: Record<TicketStatus, string> = {
   DISPONIBLE: 'ticket-disponible',
@@ -130,18 +130,13 @@ export function TicketsPage() {
   }, [debouncedQuery, status, loading])
 
   useEffect(() => {
-    if (loading || items.length >= total || total === 0) return
-    void loadMore()
-  }, [loading, items.length, total, loadMore])
-
-  useEffect(() => {
     const el = sentinelRef.current
     if (!el || loading) return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) void loadMore()
       },
-      { rootMargin: '800px' }
+      { rootMargin: '400px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
@@ -298,7 +293,7 @@ export function TicketsPage() {
           <div className="mt-2 space-y-2 text-center">
             <p className="text-xs text-ink-muted">
               {items.length < total
-                ? `Cargando boletas… ${items.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')}`
+                ? `${items.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')} boletas — sigue bajando para ver más`
                 : `${total.toLocaleString('es-CO')} boletas`}
             </p>
             {items.length < total && (
@@ -380,7 +375,7 @@ export function TicketsPage() {
           <div className="space-y-2 px-4 py-3 text-center">
             <p className="text-xs text-ink-muted">
               {items.length < total
-                ? `Cargando boletas… ${items.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')}`
+                ? `${items.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')} boletas — sigue bajando para ver más`
                 : `${total.toLocaleString('es-CO')} boletas`}
             </p>
             {items.length < total && (

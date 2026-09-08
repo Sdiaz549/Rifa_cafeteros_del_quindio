@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 
-const ROUNDS = 12
+/** Local desktop app — 10 rounds keeps login snappy on modest PCs. */
+const ROUNDS = 10
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, ROUNDS)
