@@ -4,6 +4,7 @@ import { registerIpcHandlers } from './ipc/register'
 import { getDatabaseUrl, getDataDir } from './paths'
 import { getPrisma, disconnectPrisma } from './db/client'
 import { runMigrations } from './db/migrate'
+import { ensureBaselineData } from './db/baseline'
 import { maybeBackupOnClose } from './services/backupService'
 import { ensureTicketRange } from './services/ticketService'
 import { appendMediaCommandLineSwitches, grantMicrophoneAccess } from './mediaPermissions'
@@ -23,10 +24,10 @@ app.whenReady().then(async () => {
     console.error('[startup] DB migrate error', error)
   }
 
-  // Touch prisma to ensure connection
   try {
     const prisma = getPrisma()
     await prisma.$connect()
+    await ensureBaselineData()
     await ensureTicketRange()
   } catch (error) {
     console.error('[startup] DB connect error', error)

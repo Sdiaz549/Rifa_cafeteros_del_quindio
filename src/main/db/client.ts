@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from './prismaImport'
 import { getDatabaseUrl } from '../paths'
 
-let prisma: PrismaClient | null = null
+let prisma: InstanceType<typeof PrismaClient> | null = null
 
-export function getPrisma(): PrismaClient {
+export function getPrisma(): InstanceType<typeof PrismaClient> {
   if (!prisma) {
     process.env.DATABASE_URL = getDatabaseUrl()
     prisma = new PrismaClient({

@@ -1,6 +1,6 @@
 {
   "name": "rifa-cafeteros-del-quindio",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Sistema de gestión de rifas — Cafeteros del Quindío",
   "main": "./out/main/index.js",
   "author": "Cafeteros del Quindío",
@@ -22,7 +22,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never",
+    "dist:win:dir": "npm run build && electron-builder --win --x64 --dir --publish never",
+    "verify:packaged": "node scripts/verify-packaged-prisma.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",

@@ -39,13 +39,15 @@ export async function login(raw: unknown): Promise<ApiResult<SessionUser>> {
     role: user.role.code as RoleCode
   })
 
-  await writeAuditLog({
+  void writeAuditLog({
     userId: user.id,
     module: 'AUTH',
     action: 'LOGIN',
     entity: 'User',
     entityId: user.id,
     origin: 'MANUAL'
+  }).catch((error) => {
+    console.warn('[auth] audit login failed', error)
   })
 
   return { ok: true, data: session }
