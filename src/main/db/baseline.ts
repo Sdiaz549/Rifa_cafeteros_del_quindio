@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { PaymentMethodStatus, RoleCode } from '@prisma/client'
+import { PaymentMethodStatus, RoleCode } from './prismaImport'
 import {
   APP_NAME,
   COMPANY_NAME,
