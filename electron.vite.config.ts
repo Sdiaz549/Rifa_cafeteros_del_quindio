@@ -28,6 +28,11 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [react(), tailwindcss()]
+    plugins: [react(), tailwindcss()],
+    server: {
+      port: 5173,
+      strictPort: true,
+      allowedHosts: true
+    }
   }
 })

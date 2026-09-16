@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {
@@ -13,7 +14,7 @@ enum RoleCode {
 }
 
 enum TicketStatus {
-  DISPONIBLE
+  SIN_VENDER
   EN_ABONOS
   CANCELADA
   PERDIDA
@@ -77,6 +78,7 @@ model User {
   backupRecords      BackupRecord[]
   settingsUpdates    Setting[]
   assignments        TicketAssignment[]
+  movements          Movement[]
 }
 
 model Seller {
@@ -128,12 +130,13 @@ model PaymentMethod {
   payments Payment[]
   sales    Sale[]
   expenses Expense[]
+  movements Movement[]
 }
 
 model Ticket {
   id          String       @id @default(cuid())
   number      Int          @unique
-  status      TicketStatus @default(DISPONIBLE)
+  status      TicketStatus @default(SIN_VENDER)
   sellerId    String?
   seller      Seller?      @relation(fields: [sellerId], references: [id])
   buyerId     String?
@@ -152,6 +155,7 @@ model Ticket {
   sales       Sale[]
   payments    Payment[]
   settlements Settlement[]
+  movements   Movement[]
 
   @@index([status])
   @@index([sellerId])
@@ -233,6 +237,8 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@index([ticketId, status])
+
+  movements Movement[]
 }
 
 model Settlement {
@@ -274,6 +280,8 @@ model Expense {
   @@index([expenseDate])
   @@index([category])
   @@index([status])
+
+  movements Movement[]
 }
 
 model AuditLog {
@@ -297,6 +305,8 @@ model AuditLog {
   @@index([entity, entityId])
 }
 
+/// Configuración de la aplicación (entidad Configuracion).
+/// Persistencia flexible clave/valor; el servicio tipa las claves conocidas.
 model Setting {
   key             String   @id
   value           String
@@ -305,14 +315,70 @@ model Setting {
   updatedBy       User?    @relation(fields: [updatedByUserId], references: [id])
 }
 
+enum BackupStatus {
+  LOCAL
+  PENDING_DRIVE
+  UPLOADED
+  ERROR
+}
+
+enum BackupTrigger {
+  MANUAL
+  ON_CLOSE
+  SCHEDULED
+  INTERVAL
+  PRE_RESTORE
+  PRE_MIGRATE
+}
+
 model BackupRecord {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   fileName        String
   filePath        String
-  createdAt       DateTime @default(now())
-  trigger         String
+  createdAt       DateTime     @default(now())
+  trigger         BackupTrigger
   createdByUserId String?
-  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
+  createdBy       User?        @relation(fields: [createdByUserId], references: [id])
   sizeBytes       Int
   notes           String?
+  status          BackupStatus @default(LOCAL)
+  uploadedToDrive Boolean      @default(false)
+  driveFileId     String?
+  driveUploadedAt DateTime?
+  errorMessage    String?
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+enum MovementType {
+  INGRESO
+  EGRESO
+  AJUSTE
+}
+
+/// Libro de movimientos financieros (ingresos, egresos, ajustes).
+model Movement {
+  id              String         @id @default(cuid())
+  type            MovementType
+  amount          Int
+  ticketId        String?
+  ticket          Ticket?       @relation(fields: [ticketId], references: [id])
+  paymentId       String?
+  payment         Payment?      @relation(fields: [paymentId], references: [id])
+  expenseId       String?
+  expense         Expense?      @relation(fields: [expenseId], references: [id])
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  occurredAt      DateTime
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([occurredAt])
+  @@index([type])
+  @@index([ticketId])
+  @@index([userId])
+  @@map("movimientos")
 }

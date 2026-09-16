@@ -10,6 +10,7 @@ import {
 } from '../src/shared/domain/ticketStatus'
 import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parseCommand'
 import { formatTicketNumber, parseTicketNumber, ticketNumberBounds } from '../src/shared/tickets/numbers'
+import { packTicketCell, unpackTicketCell, boardStatsFromPacked } from '../src/shared/tickets/board'
 
 describe('ticket numbers', () => {
   it('uses 0000–9999 for 10.000 boletas', () => {
@@ -18,6 +19,25 @@ describe('ticket numbers', () => {
     expect(formatTicketNumber(9999)).toBe('9999')
     expect(parseTicketNumber('0000')).toBe(0)
     expect(parseTicketNumber('0042')).toBe(42)
+  })
+})
+
+describe('ticket board packing', () => {
+  it('packs status and settled bit', () => {
+    expect(unpackTicketCell(packTicketCell('EN_ABONOS', true))).toEqual({
+      status: 'EN_ABONOS',
+      isSettled: true
+    })
+    const stats = boardStatsFromPacked([
+      packTicketCell('SIN_VENDER', false),
+      packTicketCell('CANCELADA', true),
+      packTicketCell('CANCELADA', false)
+    ])
+    expect(stats.disponible).toBe(1)
+    expect(stats.cancelada).toBe(2)
+    expect(stats.liquidadas).toBe(1)
+    expect(stats.pendLiq).toBe(1)
+    expect(stats.vendidas).toBe(2)
   })
 })
 
@@ -69,9 +89,9 @@ describe('ticket financials', () => {
   })
 
   it('gates sell/pay/settle/assign correctly', () => {
-    expect(canSell('DISPONIBLE')).toBe(true)
+    expect(canSell('SIN_VENDER')).toBe(true)
     expect(canSell('EN_ABONOS')).toBe(false)
-    expect(canAssign('DISPONIBLE')).toBe(true)
+    expect(canAssign('SIN_VENDER')).toBe(true)
     expect(canAssign('EN_ABONOS')).toBe(false)
     expect(canAssign('CANCELADA')).toBe(false)
     expect(canAcceptPayment('EN_ABONOS')).toBe(true)

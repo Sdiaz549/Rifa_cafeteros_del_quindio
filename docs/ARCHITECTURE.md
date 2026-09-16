@@ -161,54 +161,17 @@ rifa-cafeteros-del-quindio/
 │   ├── main/
 │   │   ├── index.ts
 │   │   ├── window.ts
-│   │   ├── paths.ts           # userData, db path
+│   │   ├── paths.ts
 │   │   ├── auth/
-│   │   │   ├── session.ts
-│   │   │   └── password.ts
-│   │   ├── ipc/
-│   │   │   ├── register.ts
-│   │   │   └── handlers/
-│   │   │       ├── auth.ts
-│   │   │       ├── tickets.ts
-│   │   │       ├── sales.ts
-│   │   │       ├── payments.ts
-│   │   │       ├── buyers.ts
-│   │   │       ├── sellers.ts
-│   │   │       ├── settlements.ts
-│   │   │       ├── expenses.ts
-│   │   │       ├── reports.ts
-│   │   │       ├── dashboard.ts
-│   │   │       ├── users.ts
-│   │   │       ├── paymentMethods.ts
-│   │   │       ├── settings.ts
-│   │   │       ├── audit.ts
-│   │   │       ├── backup.ts
-│   │   │       └── export.ts
-│   │   ├── services/
-│   │   │   ├── ticketService.ts
-│   │   │   ├── saleService.ts
-│   │   │   ├── paymentService.ts
-│   │   │   ├── buyerService.ts
-│   │   │   ├── sellerService.ts
-│   │   │   ├── settlementService.ts
-│   │   │   ├── expenseService.ts
-│   │   │   ├── dashboardService.ts
-│   │   │   ├── reportService.ts
-│   │   │   ├── userService.ts
-│   │   │   └── settingsService.ts
-│   │   ├── domain/
-│   │   │   ├── ticketStatus.ts
-│   │   │   ├── money.ts
-│   │   │   └── errors.ts
+│   │   ├── ipc/                 # whitelist + register
 │   │   ├── db/
-│   │   │   ├── client.ts
-│   │   │   └── migrate.ts
-│   │   ├── audit/
-│   │   │   └── auditService.ts
-│   │   ├── backup/
-│   │   │   └── backupService.ts
-│   │   └── export/
-│   │       └── excelExport.ts
+│   │   ├── repositories/         # acceso a datos (Prisma)
+│   │   ├── services/
+│   │   │   ├── googleDriveBackupService.ts
+│   │   │   ├── voiceCommandService.ts
+│   │   │   └── ...
+│   │   ├── domain/
+│   │   └── audit/
 │   ├── preload/
 │   │   ├── index.ts
 │   │   └── api.ts

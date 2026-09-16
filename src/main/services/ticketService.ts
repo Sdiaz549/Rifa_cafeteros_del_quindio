@@ -1,12 +1,70 @@
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
-import type { ApiResult, TicketSummary } from '../../shared/types'
+import type { ApiResult, TicketBoardSnapshot, TicketSummary } from '../../shared/types'
 import { ticketStatusLabel, canAssign } from '../../shared/domain/ticketStatus'
 import type { TicketStatus } from '../../shared/types'
 import { DEFAULT_TICKET_COUNT, SETTING_KEYS } from '../../shared/constants'
 import { ticketNumberBounds } from '../../shared/tickets/numbers'
 import { z } from 'zod'
+import { invalidateTicketBoard, loadTicketBoardSnapshot } from './ticketBoardCache'
+
+const ticketListSelect = {
+  id: true,
+  number: true,
+  status: true,
+  isSettled: true,
+  sellerId: true,
+  buyerId: true,
+  totalAmount: true,
+  totalPaid: true,
+  balanceDue: true,
+  soldAt: true,
+  seller: { select: { fullName: true } },
+  buyer: { select: { fullName: true } }
+} as const
+
+function n(value: unknown): number {
+  if (typeof value === 'bigint') return Number(value)
+  return Number(value ?? 0)
+}
+
+export async function queryTicketCounts(): Promise<{
+  total: number
+  disponible: number
+  enAbonos: number
+  cancelada: number
+  perdida: number
+  liquidadas: number
+  pendLiq: number
+  vendidas: number
+}> {
+  const prisma = getPrisma()
+  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'SIN_VENDER' THEN 1 ELSE 0 END) AS disponible,
+      SUM(CASE WHEN status = 'EN_ABONOS' THEN 1 ELSE 0 END) AS enAbonos,
+      SUM(CASE WHEN status = 'CANCELADA' THEN 1 ELSE 0 END) AS cancelada,
+      SUM(CASE WHEN status = 'PERDIDA' THEN 1 ELSE 0 END) AS perdida,
+      SUM(CASE WHEN isSettled = 1 THEN 1 ELSE 0 END) AS liquidadas,
+      SUM(CASE WHEN status = 'CANCELADA' AND isSettled = 0 THEN 1 ELSE 0 END) AS pendLiq
+    FROM "Ticket"
+  `
+  const row = rows[0] ?? {}
+  const total = n(row.total)
+  const disponible = n(row.disponible)
+  return {
+    total,
+    disponible,
+    enAbonos: n(row.enAbonos),
+    cancelada: n(row.cancelada),
+    perdida: n(row.perdida),
+    liquidadas: n(row.liquidadas),
+    pendLiq: n(row.pendLiq),
+    vendidas: total - disponible
+  }
+}
 
 function mapTicket(t: {
   id: string
@@ -48,7 +106,7 @@ export async function listTickets(input?: {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
     const prisma = getPrisma()
-    const take = Math.min(Math.max(input?.take ?? 400, 1), 10_000)
+    const take = Math.min(Math.max(input?.take ?? 250, 1), 500)
     const skip = Math.max(input?.skip ?? 0, 0)
     const q = input?.query?.trim()
 
@@ -68,7 +126,7 @@ export async function listTickets(input?: {
     const [items, total] = await Promise.all([
       prisma.ticket.findMany({
         where,
-        include: { seller: true, buyer: true },
+        select: ticketListSelect,
         orderBy: { number: 'asc' },
         take,
         skip
@@ -97,7 +155,7 @@ export async function getTicketByNumber(
     const prisma = getPrisma()
     const ticket = await prisma.ticket.findUnique({
       where: { number },
-      include: { seller: true, buyer: true }
+      select: ticketListSelect
     })
     if (!ticket) {
       return { ok: false, error: `No existe la boleta ${number}.` }
@@ -143,7 +201,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
     const updated = await prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findUnique({
         where: { number: input.ticketNumber },
-        include: { seller: true, buyer: true }
+        select: ticketListSelect
       })
       if (!ticket) {
         throw new Error(`No existe la boleta ${input.ticketNumber}.`)
@@ -212,7 +270,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
       const ticketUpdated = await tx.ticket.update({
         where: { id: ticket.id },
         data: { sellerId: seller.id },
-        include: { seller: true, buyer: true }
+        select: ticketListSelect
       })
 
       await tx.auditLog.create({
@@ -235,6 +293,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
       return ticketUpdated
     })
 
+    invalidateTicketBoard()
     return { ok: true, data: mapTicket(updated as never) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al asignar la boleta' }
@@ -250,7 +309,7 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
     const updated = await prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findUnique({
         where: { number },
-        include: { seller: true, buyer: true }
+        select: ticketListSelect
       })
       if (!ticket) {
         throw new Error(`No existe la boleta ${number}.`)
@@ -258,14 +317,14 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
       if (ticket.status === 'PERDIDA') {
         throw new Error(`La boleta ${number} ya está marcada como perdida.`)
       }
-      if (ticket.status === 'DISPONIBLE') {
+      if (ticket.status === 'SIN_VENDER') {
         throw new Error('No se puede marcar como perdida una boleta sin vender.')
       }
 
       const result = await tx.ticket.update({
         where: { id: ticket.id },
         data: { status: 'PERDIDA' },
-        include: { seller: true, buyer: true }
+        select: ticketListSelect
       })
 
       await tx.auditLog.create({
@@ -284,6 +343,7 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
       return result
     })
 
+    invalidateTicketBoard()
     return { ok: true, data: mapTicket(updated as never) }
   } catch (e) {
     return {
@@ -293,35 +353,35 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
   }
 }
 
+export async function getTicketBoard(): Promise<ApiResult<TicketBoardSnapshot>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'tickets:view')
+    const data = await loadTicketBoardSnapshot()
+    return { ok: true, data }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al cargar el tablero' }
+  }
+}
+
 export async function getTicketStats(): Promise<
   ApiResult<Record<string, number>>
 > {
   try {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
-    const prisma = getPrisma()
-    const [total, disponible, enAbonos, cancelada, perdida, liquidadas, pendLiq] =
-      await Promise.all([
-        prisma.ticket.count(),
-        prisma.ticket.count({ where: { status: 'DISPONIBLE' } }),
-        prisma.ticket.count({ where: { status: 'EN_ABONOS' } }),
-        prisma.ticket.count({ where: { status: 'CANCELADA' } }),
-        prisma.ticket.count({ where: { status: 'PERDIDA' } }),
-        prisma.ticket.count({ where: { isSettled: true } }),
-        prisma.ticket.count({ where: { status: 'CANCELADA', isSettled: false } })
-      ])
-
+    const counts = await queryTicketCounts()
     return {
       ok: true,
       data: {
-        total,
-        disponible,
-        enAbonos,
-        cancelada,
-        perdida,
-        liquidadas,
-        pendienteLiquidacion: pendLiq,
-        vendidas: total - disponible
+        total: counts.total,
+        disponible: counts.disponible,
+        enAbonos: counts.enAbonos,
+        cancelada: counts.cancelada,
+        perdida: counts.perdida,
+        liquidadas: counts.liquidadas,
+        pendienteLiquidacion: counts.pendLiq,
+        vendidas: counts.vendidas
       }
     }
   } catch (e) {
@@ -334,6 +394,9 @@ export async function ensureTicketRange(): Promise<number> {
   const setting = await prisma.setting.findUnique({ where: { key: SETTING_KEYS.ticketCount } })
   const count = Number(setting?.value) || DEFAULT_TICKET_COUNT
   const { first, last } = ticketNumberBounds(count)
+  const expected = last - first + 1
+  const existingCount = await prisma.ticket.count()
+  if (existingCount >= expected) return 0
   const existing = await prisma.ticket.findMany({ select: { number: true } })
   const have = new Set(existing.map((t) => t.number))
   const missing: { number: number }[] = []
@@ -345,6 +408,7 @@ export async function ensureTicketRange(): Promise<number> {
     await prisma.ticket.createMany({ data: missing.slice(i, i + chunk) })
   }
   if (missing.length) {
+    invalidateTicketBoard()
     console.log(`[tickets] generated ${missing.length} missing numbers (${String(first).padStart(4, '0')}–${String(last).padStart(4, '0')})`)
   }
   return missing.length

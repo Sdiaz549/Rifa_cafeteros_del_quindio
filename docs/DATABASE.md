@@ -47,7 +47,7 @@ enum RoleCode {
 }
 
 enum TicketStatus {
-  DISPONIBLE
+  SIN_VENDER
   EN_ABONOS
   CANCELADA
   PERDIDA

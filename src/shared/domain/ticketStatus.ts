@@ -31,7 +31,7 @@ export function recalcTicketFinancials(input: {
     if (totalAmount > 0) {
       return { totalAmount, totalPaid: 0, balanceDue: totalAmount, status: 'EN_ABONOS' }
     }
-    return { totalAmount: 0, totalPaid: 0, balanceDue: 0, status: 'DISPONIBLE' }
+    return { totalAmount: 0, totalPaid: 0, balanceDue: 0, status: 'SIN_VENDER' }
   }
 
   if (balanceDue === 0) {
@@ -46,11 +46,11 @@ export function canAcceptPayment(status: TicketStatus): boolean {
 }
 
 export function canSell(status: TicketStatus): boolean {
-  return status === 'DISPONIBLE'
+  return status === 'SIN_VENDER'
 }
 
 export function canAssign(status: TicketStatus): boolean {
-  return status === 'DISPONIBLE'
+  return status === 'SIN_VENDER'
 }
 
 export function canSettle(status: TicketStatus, isSettled: boolean): boolean {
@@ -59,7 +59,7 @@ export function canSettle(status: TicketStatus, isSettled: boolean): boolean {
 
 export function ticketStatusLabel(status: TicketStatus): string {
   switch (status) {
-    case 'DISPONIBLE':
+    case 'SIN_VENDER':
       return 'Sin vender'
     case 'EN_ABONOS':
       return 'En abonos'

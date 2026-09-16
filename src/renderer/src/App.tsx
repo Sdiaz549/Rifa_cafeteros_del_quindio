@@ -1,30 +1,67 @@
+import { lazy, Suspense } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthContext'
 import { RequireAuth, RequirePermission } from './features/auth/guards'
 import { LoginPage } from './features/auth/LoginPage'
 import { AppShell } from './layouts/AppShell'
-import { HomePage } from './features/home/HomePage'
-import { TicketsPage } from './features/tickets/TicketsPage'
-import { TicketDetailPage } from './features/tickets/TicketDetailPage'
-import { PaymentsPage } from './features/payments/PaymentsPage'
-import { BuyersPage } from './features/buyers/BuyersPage'
-import { SellersPage } from './features/sellers/SellersPage'
-import { SettlementsPage } from './features/settlements/SettlementsPage'
-import { UnsoldTicketsPage } from './features/unsold/UnsoldTicketsPage'
-import { IncomesPage } from './features/incomes/IncomesPage'
-import { ExpensesPage } from './features/expenses/ExpensesPage'
-import { ReportsPage } from './features/reports/ReportsPage'
-import { BackupsPage } from './features/backups/BackupsPage'
-import { AuditPage } from './features/audit/AuditPage'
-import { UsersPage } from './features/users/UsersPage'
-import { PaymentMethodsPage } from './features/paymentMethods/PaymentMethodsPage'
-import { SettingsPage } from './features/settings/SettingsPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from 'sonner'
+
+const HomePage = lazy(() => import('./features/home/HomePage').then((m) => ({ default: m.HomePage })))
+const TicketsPage = lazy(() =>
+  import('./features/tickets/TicketsPage').then((m) => ({ default: m.TicketsPage }))
+)
+const TicketDetailPage = lazy(() =>
+  import('./features/tickets/TicketDetailPage').then((m) => ({ default: m.TicketDetailPage }))
+)
+const PaymentsPage = lazy(() =>
+  import('./features/payments/PaymentsPage').then((m) => ({ default: m.PaymentsPage }))
+)
+const BuyersPage = lazy(() =>
+  import('./features/buyers/BuyersPage').then((m) => ({ default: m.BuyersPage }))
+)
+const SellersPage = lazy(() =>
+  import('./features/sellers/SellersPage').then((m) => ({ default: m.SellersPage }))
+)
+const SettlementsPage = lazy(() =>
+  import('./features/settlements/SettlementsPage').then((m) => ({ default: m.SettlementsPage }))
+)
+const UnsoldTicketsPage = lazy(() =>
+  import('./features/unsold/UnsoldTicketsPage').then((m) => ({ default: m.UnsoldTicketsPage }))
+)
+const IncomesPage = lazy(() =>
+  import('./features/incomes/IncomesPage').then((m) => ({ default: m.IncomesPage }))
+)
+const ExpensesPage = lazy(() =>
+  import('./features/expenses/ExpensesPage').then((m) => ({ default: m.ExpensesPage }))
+)
+const ReportsPage = lazy(() =>
+  import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage }))
+)
+const BackupsPage = lazy(() =>
+  import('./features/backups/BackupsPage').then((m) => ({ default: m.BackupsPage }))
+)
+const AuditPage = lazy(() =>
+  import('./features/audit/AuditPage').then((m) => ({ default: m.AuditPage }))
+)
+const UsersPage = lazy(() =>
+  import('./features/users/UsersPage').then((m) => ({ default: m.UsersPage }))
+)
+const PaymentMethodsPage = lazy(() =>
+  import('./features/paymentMethods/PaymentMethodsPage').then((m) => ({
+    default: m.PaymentMethodsPage
+  }))
+)
+const SettingsPage = lazy(() =>
+  import('./features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+)
 
 export default function App() {
   return (
     <AuthProvider>
+      <ErrorBoundary>
       <HashRouter>
+        <Suspense fallback={<p className="p-6 text-sm text-ink-muted">Cargando…</p>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -147,7 +184,9 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </HashRouter>
+      </ErrorBoundary>
       <Toaster richColors position="top-right" toastOptions={{ className: 'font-sans' }} />
     </AuthProvider>
   )

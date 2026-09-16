@@ -10,6 +10,7 @@ import type {
   PaymentSummary,
   TicketSummary
 } from '../../shared/types'
+import { invalidateTicketBoard } from './ticketBoardCache'
 
 const createPaymentSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
@@ -78,7 +79,7 @@ export async function createPayment(
       if (!ticket) {
         throw new Error(`No existe la boleta ${input.ticketNumber}.`)
       }
-      if (ticket.status === 'DISPONIBLE') {
+      if (ticket.status === 'SIN_VENDER') {
         throw new Error(`La boleta ${input.ticketNumber} aún no ha sido vendida.`)
       }
       if (ticket.status === 'CANCELADA') {
@@ -167,6 +168,7 @@ export async function createPayment(
       return { ticket: updated, payment }
     })
 
+    invalidateTicketBoard()
     return {
       ok: true,
       data: {

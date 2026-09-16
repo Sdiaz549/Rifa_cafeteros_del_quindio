@@ -6,7 +6,7 @@ Entregar una aplicación Electron instalable en Windows que cubra **todos** los 
 
 Este documento divide el trabajo en **20 fases**. Cada fase tiene entregables verificables y dependencias claras.
 
-**Estado actual:** Fases 1–9 avanzadas: scaffold, SQLite/Prisma, auth/roles, layout, boletas, **ventas**, **abonos**, compradores/vendedores CRUD, estados automáticos y tests de reglas. Build OK.
+**Estado actual:** Fase 1 consolidada (arquitectura, Prisma, IPC, login, dashboard). Los módulos posteriores ya existen en el repo y se endurecerán fase a fase.
 
 ---
 
@@ -278,7 +278,7 @@ Un PR o serie de commits por fase (o grupos 1–4, 5–10, 11–16, 17–20) par
 
 ## Próximo paso inmediato
 
-Tras aprobación de esta Etapa 0:
+Tras esta Fase 1:
 
-1. Ejecutar **FASE 1** (scaffold del monorepo Electron)
-2. Continuar **FASE 2** (Prisma schema real + migración)
+1. Ejecutar `npm run dev` y validar login + dashboard
+2. Continuar **Fase 2** (módulo Boletas: venta/abonos desde la boleta, historial, reglas de saldo)

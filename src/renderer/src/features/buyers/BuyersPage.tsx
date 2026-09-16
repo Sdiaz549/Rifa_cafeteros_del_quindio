@@ -33,11 +33,7 @@ export function BuyersPage() {
   }
 
   useEffect(() => {
-    void load()
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => void load(query), 250)
+    const t = setTimeout(() => void load(query), query ? 250 : 0)
     return () => clearTimeout(t)
   }, [query])
 

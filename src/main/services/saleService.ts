@@ -6,6 +6,7 @@ import { DEFAULT_TICKET_PRICE } from '../../shared/constants'
 import { assertNonNegativeMoney } from '../../shared/money'
 import { canSell, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
 import type { ApiResult, CreateSaleInput, TicketSummary } from '../../shared/types'
+import { invalidateTicketBoard } from './ticketBoardCache'
 
 const buyerInlineSchema = z.object({
   fullName: z.string().min(2),
@@ -137,10 +138,10 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       const financials = recalcTicketFinancials({
         totalAmount: amount,
         totalPaidActive: input.initialPayment,
-        currentStatus: 'DISPONIBLE'
+        currentStatus: 'SIN_VENDER'
       })
       const nextStatus =
-        financials.status === 'DISPONIBLE' ? 'EN_ABONOS' : financials.status
+        financials.status === 'SIN_VENDER' ? 'EN_ABONOS' : financials.status
 
       const sale = await tx.sale.create({
         data: {
@@ -212,6 +213,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       return ticketUpdated
     })
 
+    invalidateTicketBoard()
     return { ok: true, data: mapTicket(updated) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al registrar la venta' }

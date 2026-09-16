@@ -88,6 +88,10 @@ async function main() {
     backupFolder: '',
     autoBackupEnabled: 'true',
     autoBackupOnClose: 'true',
+    backupScheduledEnabled: 'false',
+    backupIntervalHours: '24',
+    allowSurplus: 'false',
+    googleDriveConnected: 'false',
     ticketNumberPad: '4'
   }
 
@@ -157,7 +161,7 @@ async function main() {
     await prisma.ticket.createMany({
       data: Array.from({ length: 100 }, (_, idx) => ({
         number: idx,
-        status: TicketStatus.DISPONIBLE,
+        status: TicketStatus.SIN_VENDER,
         sellerId: sellers[idx % sellers.length].id,
         totalAmount: 0,
         totalPaid: 0,

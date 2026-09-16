@@ -31,13 +31,19 @@ npm run db:seed
 npm run dev
 ```
 
-La base SQLite queda en `data/rifa.db`. En `.env` use:
+La base SQLite de desarrollo queda en `data/database.db` (si existía `data/rifa.db`, se copia automáticamente). En `.env` (ver `.env.example`) use:
 
 ```
-DATABASE_URL="file:../data/rifa.db"
+DATABASE_URL="file:../data/database.db"
 ```
 
-(Prisma resuelve esa ruta relativa a la carpeta `prisma/`.)
+En el computador del cliente la base vive en:
+
+`%AppData%\Roaming\SistemaRifas\database.db`
+
+Una actualización o desinstalación **no borra** esa carpeta.
+
+Documentación de la Fase 1: `docs/PHASE_1.md`.
 
 ### Usuarios seed (solo desarrollo)
 
@@ -56,7 +62,11 @@ DATABASE_URL="file:../data/rifa.db"
 | `npm run test` | Tests Vitest (reglas de dominio) |
 | `npm run typecheck` | TypeScript main + renderer |
 | `npm run build` | Build producción |
-| `npm run dist:win` | Instalador Windows (NSIS) |
+| `npm run dist` | Instalador Windows NSIS (`release/SistemaRifas-Setup-x.y.z.exe`) |
+| `npm run dist:win` | Alias de `npm run dist` |
+| `npm run dist:dir` | Carpeta unpackaged para depurar el paquete |
+
+Si el proyecto está en OneDrive, el empaquetado se hace en `%LOCALAPPDATA%\SistemaRifas-dist` y el `.exe` se copia a `release/`. Así se evita el error EPERM al renombrar `win-unpacked`.
 | `npm run db:seed` | Datos de desarrollo |
 | `npm run db:studio` | Prisma Studio |
 

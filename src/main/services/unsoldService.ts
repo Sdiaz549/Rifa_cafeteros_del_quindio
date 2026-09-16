@@ -64,18 +64,31 @@ export async function listUnsoldBySeller(input?: {
       }),
       prisma.ticket.findMany({
         where: {
-          status: 'DISPONIBLE',
+          status: 'SIN_VENDER',
           ...(input?.sellerId
             ? { sellerId: input.sellerId }
             : input?.onlyWithSeller
               ? { sellerId: { not: null } }
               : {})
         },
-        include: { seller: true, buyer: true },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          isSettled: true,
+          sellerId: true,
+          buyerId: true,
+          totalAmount: true,
+          totalPaid: true,
+          balanceDue: true,
+          soldAt: true,
+          seller: { select: { fullName: true } },
+          buyer: { select: { fullName: true } }
+        },
         orderBy: { number: 'asc' }
       }),
       prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: 'DISPONIBLE', sellerId: null } })
+      prisma.ticket.count({ where: { status: 'SIN_VENDER', sellerId: null } })
     ])
 
     const assignedCounts = await prisma.ticket.groupBy({

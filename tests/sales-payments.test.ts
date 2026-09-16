@@ -7,8 +7,8 @@ import {
 } from '../src/shared/domain/ticketStatus'
 
 describe('sale and payment business rules', () => {
-  it('allows selling only DISPONIBLE tickets', () => {
-    expect(canSell('DISPONIBLE')).toBe(true)
+  it('allows selling only SIN_VENDER tickets', () => {
+    expect(canSell('SIN_VENDER')).toBe(true)
     expect(canSell('EN_ABONOS')).toBe(false)
     expect(canSell('CANCELADA')).toBe(false)
     expect(canSell('PERDIDA')).toBe(false)
@@ -29,7 +29,7 @@ describe('sale and payment business rules', () => {
     const result = recalcTicketFinancials({
       totalAmount: 50000,
       totalPaidActive: 50000,
-      currentStatus: 'DISPONIBLE'
+      currentStatus: 'SIN_VENDER'
     })
     expect(result.status).toBe('CANCELADA')
     expect(result.balanceDue).toBe(0)
@@ -39,7 +39,7 @@ describe('sale and payment business rules', () => {
     const result = recalcTicketFinancials({
       totalAmount: 50000,
       totalPaidActive: 10000,
-      currentStatus: 'DISPONIBLE'
+      currentStatus: 'SIN_VENDER'
     })
     expect(result.status).toBe('EN_ABONOS')
     expect(result.balanceDue).toBe(40000)
@@ -48,7 +48,7 @@ describe('sale and payment business rules', () => {
   it('accepts payments only in EN_ABONOS', () => {
     expect(canAcceptPayment('EN_ABONOS')).toBe(true)
     expect(canAcceptPayment('CANCELADA')).toBe(false)
-    expect(canAcceptPayment('DISPONIBLE')).toBe(false)
+    expect(canAcceptPayment('SIN_VENDER')).toBe(false)
   })
 
   it('allows settlement only for unpaid-settlement CANCELADA tickets', () => {

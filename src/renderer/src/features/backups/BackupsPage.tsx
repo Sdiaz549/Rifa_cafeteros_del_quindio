@@ -84,7 +84,9 @@ export function BackupsPage() {
       toast.error(res.error)
       return
     }
-    toast.success('Backup restaurado. Inicie sesión de nuevo.')
+    toast.success(
+      'Backup restaurado. Si la aplicación no responde con normalidad, ciérrela y ábrala de nuevo.'
+    )
     window.location.hash = '#/login'
     window.location.reload()
   }
@@ -104,7 +106,9 @@ export function BackupsPage() {
       if (res.error !== 'Restauración cancelada.') toast.error(res.error)
       return
     }
-    toast.success('Backup restaurado. Inicie sesión de nuevo.')
+    toast.success(
+      'Backup restaurado. Si la aplicación no responde con normalidad, ciérrela y ábrala de nuevo.'
+    )
     window.location.hash = '#/login'
     window.location.reload()
   }

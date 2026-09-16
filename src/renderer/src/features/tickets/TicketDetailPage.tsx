@@ -10,7 +10,7 @@ import { cn } from '../../lib/cn'
 import { AssignSellerForm } from './AssignSellerForm'
 
 const statusTone: Record<string, string> = {
-  DISPONIBLE: 'ticket-disponible',
+  SIN_VENDER: 'ticket-sin-vender',
   EN_ABONOS: 'ticket-en-abonos',
   CANCELADA: 'ticket-cancelada',
   PERDIDA: 'ticket-perdida'
@@ -85,7 +85,7 @@ export function TicketDetailPage() {
   if (!ticket) return <p className="text-ink-muted">Cargando…</p>
 
   const ticketValue = ticket.totalAmount > 0 ? ticket.totalAmount : DEFAULT_TICKET_PRICE
-  const ticketBalance = ticket.status === 'DISPONIBLE' ? ticketValue : ticket.balanceDue
+  const ticketBalance = ticket.status === 'SIN_VENDER' ? ticketValue : ticket.balanceDue
   const pending = ticketBalance > 0
 
   return (
@@ -166,7 +166,7 @@ export function TicketDetailPage() {
             <p className="mt-2 text-sm opacity-90">
               {ticket.status === 'EN_ABONOS'
                 ? 'La boleta tiene pagos parciales registrados.'
-                : ticket.status === 'DISPONIBLE'
+                : ticket.status === 'SIN_VENDER'
                   ? 'Boleta disponible. Puede asignarla a un vendedor sin marcarla vendida.'
                   : ticket.status === 'CANCELADA'
                     ? 'Boleta cancelada / pagada en su totalidad.'
@@ -234,7 +234,7 @@ export function TicketDetailPage() {
         </div>
       </section>
 
-      {ticket.status === 'DISPONIBLE' && can('tickets:sell') && (
+      {ticket.status === 'SIN_VENDER' && can('tickets:sell') && (
         <div className="app-card p-6">
           <AssignSellerForm
             ticketNumber={ticket.number}
@@ -258,7 +258,7 @@ export function TicketDetailPage() {
         )}
         {can('tickets:mark_lost') &&
           ticket.status !== 'PERDIDA' &&
-          ticket.status !== 'DISPONIBLE' && (
+          ticket.status !== 'SIN_VENDER' && (
             <button
               type="button"
               disabled={markingLost}

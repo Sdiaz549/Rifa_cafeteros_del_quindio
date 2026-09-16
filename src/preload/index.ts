@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { IPC_CHANNELS } from '../shared/ipc/channels'
 import type {
   ApiResult,
   AuditListResult,
@@ -11,8 +12,11 @@ import type {
   CreatePaymentInput,
   CreateSaleInput,
   CreateSettlementInput,
+  DashboardBackupCard,
   DashboardSnapshot,
+  GoogleDriveStatus,
   HomeOverview,
+  AppRuntimeInfo,
   ExpenseListResult,
   ExpenseSummary,
   IncomeListResult,
@@ -25,6 +29,7 @@ import type {
   SessionUser,
   SettlementSummary,
   TicketSummary,
+  TicketBoardSnapshot,
   UnsoldBySellerSummary,
   UserSummary
 } from '../shared/types'
@@ -32,9 +37,9 @@ import type {
 const api = {
   auth: {
     login: (payload: { username: string; password: string }): Promise<ApiResult<SessionUser>> =>
-      ipcRenderer.invoke('auth:login', payload),
-    logout: (): Promise<ApiResult<{ loggedOut: true }>> => ipcRenderer.invoke('auth:logout'),
-    me: (): Promise<ApiResult<SessionUser>> => ipcRenderer.invoke('auth:me')
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN, payload),
+    logout: (): Promise<ApiResult<{ loggedOut: true }>> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT),
+    me: (): Promise<ApiResult<SessionUser>> => ipcRenderer.invoke(IPC_CHANNELS.AUTH_ME)
   },
   tickets: {
     list: (payload?: {
@@ -44,6 +49,7 @@ const api = {
       skip?: number
     }): Promise<ApiResult<{ items: TicketSummary[]; total: number }>> =>
       ipcRenderer.invoke('tickets:list', payload),
+    board: (): Promise<ApiResult<TicketBoardSnapshot>> => ipcRenderer.invoke('tickets:board'),
     getByNumber: (number: number) => ipcRenderer.invoke('tickets:getByNumber', number),
     stats: () => ipcRenderer.invoke('tickets:stats'),
     markLost: (number: number): Promise<ApiResult<TicketSummary>> =>
@@ -224,7 +230,7 @@ const api = {
     restore: (payload?: {
       backupId?: string
       filePath?: string
-    }): Promise<ApiResult<{ restored: true; filePath: string }>> =>
+    }): Promise<ApiResult<{ restored: true; filePath: string; requiresRestart: boolean }>> =>
       ipcRenderer.invoke('backups:restore', payload),
     getSettings: (): Promise<ApiResult<BackupSettings>> =>
       ipcRenderer.invoke('backups:getSettings'),
@@ -232,10 +238,32 @@ const api = {
       backupFolder?: string
       autoBackupEnabled?: boolean
       autoBackupOnClose?: boolean
+      backupScheduledEnabled?: boolean
+      backupIntervalHours?: number
+      allowSurplus?: boolean
     }): Promise<ApiResult<{ saved: true }>> =>
-      ipcRenderer.invoke('backups:updateSettings', payload),
+      ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_UPDATE_SETTINGS, payload),
     chooseFolder: (): Promise<ApiResult<{ backupFolder: string }>> =>
-      ipcRenderer.invoke('backups:chooseFolder')
+      ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_CHOOSE_FOLDER),
+    latest: (): Promise<ApiResult<DashboardBackupCard | null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_LATEST),
+    uploadToDrive: (payload?: { backupId?: string }): Promise<ApiResult<BackupSummary>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_UPLOAD_DRIVE, payload),
+    listDrive: (): Promise<
+      ApiResult<{ files: { id: string; name: string; createdTime: string; sizeBytes: number }[] }>
+    > => ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_LIST_DRIVE),
+    deleteOld: (): Promise<ApiResult<{ deleted: number }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.BACKUPS_DELETE_OLD)
+  },
+  voice: {
+    parse: (raw: string): Promise<ApiResult<{ ok: boolean; action: string; message: string; navigateTo?: string }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.VOICE_PARSE, raw)
+  },
+  drive: {
+    status: (): Promise<ApiResult<GoogleDriveStatus>> => ipcRenderer.invoke(IPC_CHANNELS.DRIVE_STATUS)
+  },
+  app: {
+    getInfo: (): Promise<ApiResult<AppRuntimeInfo>> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_INFO)
   },
   audit: {
     list: (payload?: {

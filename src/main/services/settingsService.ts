@@ -5,6 +5,7 @@ import { assertPermission } from '../../shared/permissions'
 import { SETTING_KEYS, DEFAULT_TICKET_PRICE } from '../../shared/constants'
 import { writeAuditLog } from '../audit/auditService'
 import type { ApiResult, AppSettings, PublicSettings } from '../../shared/types'
+import { invalidateTicketBoard } from './ticketBoardCache'
 
 const updateSchema = z.object({
   companyName: z.string().trim().min(2).optional(),
@@ -66,18 +67,25 @@ export async function getAppSettings(): Promise<ApiResult<AppSettings>> {
     assertPermission(session.role, 'settings:manage')
     const publicRes = await getPublicSettings()
     if (!publicRes.ok) return publicRes
-    const [backupFolder, autoBackupEnabled, autoBackupOnClose] = await Promise.all([
-      readSetting(SETTING_KEYS.backupFolder, ''),
-      readSetting(SETTING_KEYS.autoBackupEnabled, 'true'),
-      readSetting(SETTING_KEYS.autoBackupOnClose, 'true')
-    ])
+    const [backupFolder, autoBackupEnabled, autoBackupOnClose, scheduled, interval, surplus] =
+      await Promise.all([
+        readSetting(SETTING_KEYS.backupFolder, ''),
+        readSetting(SETTING_KEYS.autoBackupEnabled, 'true'),
+        readSetting(SETTING_KEYS.autoBackupOnClose, 'true'),
+        readSetting(SETTING_KEYS.backupScheduledEnabled, 'false'),
+        readSetting(SETTING_KEYS.backupIntervalHours, '24'),
+        readSetting(SETTING_KEYS.allowSurplus, 'false')
+      ])
     return {
       ok: true,
       data: {
         ...publicRes.data,
         backupFolder,
         autoBackupEnabled: asBool(autoBackupEnabled),
-        autoBackupOnClose: asBool(autoBackupOnClose)
+        autoBackupOnClose: asBool(autoBackupOnClose),
+        backupScheduledEnabled: asBool(scheduled),
+        backupIntervalHours: Number(interval) || 24,
+        allowSurplus: asBool(surplus)
       }
     }
   } catch (e) {
@@ -118,6 +126,7 @@ export async function updateAppSettings(raw: unknown): Promise<ApiResult<AppSett
         await prisma.ticket.createMany({ data: missing.slice(i, i + chunk) })
       }
       generated = missing.length
+      if (generated) invalidateTicketBoard()
     }
 
     await writeAuditLog({

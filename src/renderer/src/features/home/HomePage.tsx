@@ -11,6 +11,8 @@ import {
   Ticket,
   TicketX,
   TrendingUp,
+  UserRound,
+  Users,
   Wallet
 } from 'lucide-react'
 import {
@@ -31,6 +33,7 @@ import { formatCop } from '@shared/money'
 import { formatDateCo } from '@shared/dates'
 import type { HomeOverview, TicketStatus } from '@shared/types'
 import { cn } from '../../lib/cn'
+import { BackupStatusCard } from '../../components/BackupStatusCard'
 
 const PIE_COLORS: Record<string, string> = {
   'Sin vender': '#c5cdc9',
@@ -40,14 +43,14 @@ const PIE_COLORS: Record<string, string> = {
 }
 
 const STATUS_PILL: Record<TicketStatus, string> = {
-  DISPONIBLE: 'bg-[#e8ecea] text-[#5c6b64]',
+  SIN_VENDER: 'bg-[#e8ecea] text-[#5c6b64]',
   EN_ABONOS: 'bg-[#ffe082] text-[#5c4400]',
   CANCELADA: 'bg-[#c8f0c0] text-[#1b5e20]',
   PERDIDA: 'bg-[#e53935] text-white'
 }
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
-  DISPONIBLE: 'Disponible',
+  SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
   PERDIDA: 'Perdida'
@@ -112,12 +115,17 @@ export function HomePage() {
   const [data, setData] = useState<HomeOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  async function load() {
+    const res = await window.api.dashboard.home()
+    if (!res.ok) setError(res.error)
+    else {
+      setError(null)
+      setData(res.data)
+    }
+  }
+
   useEffect(() => {
-    void (async () => {
-      const res = await window.api.dashboard.home()
-      if (!res.ok) setError(res.error)
-      else setData(res.data)
-    })()
+    void load()
   }, [])
 
   if (error) return <p className="text-accent-red">{error}</p>
@@ -144,37 +152,37 @@ export function HomePage() {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-[#cfe8d4] bg-[#e9f6ee] p-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold tracking-wide text-forest uppercase">Ingresos hoy</p>
-              <TrendingUp size={18} className="text-[#2e7d32]" />
+              <p className="text-xs font-semibold tracking-wide text-forest uppercase">Total recaudado</p>
+              <Banknote size={18} className="text-[#2e7d32]" />
             </div>
-            <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.ingresosHoy)}</p>
-            <div className="mt-1">
-              <Delta value={finance.ingresosHoyDeltaPct} label="vs. ayer" />
+            <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.recaudado)}</p>
+            <p className="mt-1 text-xs text-dash-muted">Ingresos hoy {formatCop(finance.ingresosHoy)}</p>
+          </div>
+          <div className="rounded-2xl border border-[#f3e3c4] bg-[#fff8e8] p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold tracking-wide text-forest uppercase">Saldo pendiente</p>
+              <Wallet size={18} className="text-[#b8860b]" />
             </div>
+            <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.porCobrar)}</p>
+            <Delta value={finance.ingresosMesDeltaPct} label="ingresos vs. mes anterior" />
           </div>
           <div className="rounded-2xl border border-[#e4ecd0] bg-[#f4f6e8] p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold tracking-wide text-forest uppercase">Ingresos del mes</p>
-              <Banknote size={18} className="text-[#5b8c2a]" />
+              <TrendingUp size={18} className="text-[#5b8c2a]" />
             </div>
             <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.ingresosMes)}</p>
             <div className="mt-1">
               <Delta value={finance.ingresosMesDeltaPct} label="vs. mes anterior" />
             </div>
           </div>
-          <div className="rounded-2xl border border-[#f3cfcf] bg-[#fdecec] p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold tracking-wide text-[#9b1c1c] uppercase">Egresos del mes</p>
-              <ArrowDownRight size={18} className="text-accent-red" />
-            </div>
-            <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.egresosMes)}</p>
-          </div>
           <div className="rounded-2xl border border-[#cfe0f2] bg-[#eaf3fb] p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold tracking-wide text-[#1e4b7a] uppercase">Balance del mes</p>
-              <Wallet size={18} className="text-[#1e4b7a]" />
+              <ArrowDownRight size={18} className="text-[#1e4b7a]" />
             </div>
             <p className="mt-2 font-display text-2xl font-semibold text-forest">{formatCop(finance.balanceMes)}</p>
+            <p className="mt-1 text-xs text-dash-muted">Egresos {formatCop(finance.egresosMes)}</p>
           </div>
         </section>
       )}
@@ -233,6 +241,26 @@ export function HomePage() {
           barClass="bg-[#4a5560]"
           icon={<Handshake size={16} className="text-[#4a5560]" />}
         />
+      </section>
+
+      <section className={cn('grid gap-4', can('backups:manage') ? 'xl:grid-cols-[1fr_1fr_1.1fr]' : 'sm:grid-cols-2')}>
+        <div className="dash-card px-4 py-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold tracking-wide text-dash-muted uppercase">Vendedores</p>
+            <UserRound size={16} className="text-forest" />
+          </div>
+          <p className="mt-2 text-2xl font-semibold text-forest">{data.sellerCount.toLocaleString('es-CO')}</p>
+        </div>
+        <div className="dash-card px-4 py-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold tracking-wide text-dash-muted uppercase">Compradores</p>
+            <Users size={16} className="text-forest" />
+          </div>
+          <p className="mt-2 text-2xl font-semibold text-forest">{data.buyerCount.toLocaleString('es-CO')}</p>
+        </div>
+        {can('backups:manage') && (
+          <BackupStatusCard backup={data.backup} onCreated={() => void load()} />
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr_1fr]">

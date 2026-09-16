@@ -8,6 +8,7 @@ import type {
   SettlementSummary,
   TicketSummary
 } from '../../shared/types'
+import { invalidateTicketBoard } from './ticketBoardCache'
 
 const settleSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
@@ -165,6 +166,7 @@ export async function settleTicket(
       return { ticket: updated, settlement }
     })
 
+    invalidateTicketBoard()
     return {
       ok: true,
       data: {

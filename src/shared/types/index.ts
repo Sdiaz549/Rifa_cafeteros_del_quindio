@@ -1,6 +1,6 @@
 import type { RoleCode } from '../permissions'
 
-export type TicketStatus = 'DISPONIBLE' | 'EN_ABONOS' | 'CANCELADA' | 'PERDIDA'
+export type TicketStatus = 'SIN_VENDER' | 'EN_ABONOS' | 'CANCELADA' | 'PERDIDA'
 export type SellerStatus = 'ACTIVO' | 'INACTIVO'
 export type PaymentMethodStatus = 'ACTIVO' | 'INACTIVO'
 export type PaymentType = 'VENTA_INICIAL' | 'ABONO'
@@ -28,6 +28,12 @@ export interface TicketSummary {
   totalPaid: number
   balanceDue: number
   soldAt: string | null
+}
+
+/** Tablero compacto: packed[i] = boleta (first + i). 2 bits estado + 1 bit liquidada. */
+export interface TicketBoardSnapshot {
+  first: number
+  packed: number[]
 }
 
 export interface ApiErrorShape {
@@ -240,7 +246,16 @@ export interface ReportResult {
   total: number
 }
 
-export type BackupTrigger = 'MANUAL' | 'ON_CLOSE' | 'SCHEDULED' | 'PRE_RESTORE'
+export type BackupTrigger = 'MANUAL' | 'ON_CLOSE' | 'SCHEDULED' | 'INTERVAL' | 'PRE_RESTORE' | 'PRE_MIGRATE'
+
+export interface AppRuntimeInfo {
+  version: string
+  name: string
+  packaged: boolean
+}
+
+export type BackupStatus = 'LOCAL' | 'PENDING_DRIVE' | 'UPLOADED' | 'ERROR'
+export type DriveBackupStatusLabel = 'UPLOADED' | 'PENDING' | 'ERROR'
 
 export interface BackupSummary {
   id: string
@@ -252,12 +267,38 @@ export interface BackupSummary {
   createdByName: string | null
   sizeBytes: number
   notes: string | null
+  status: BackupStatus
+  uploadedToDrive: boolean
+  driveFileId: string | null
+  driveUploadedAt: string | null
+  errorMessage: string | null
 }
 
 export interface BackupSettings {
   backupFolder: string
   autoBackupEnabled: boolean
   autoBackupOnClose: boolean
+  backupScheduledEnabled: boolean
+  backupIntervalHours: number
+  allowSurplus: boolean
+}
+
+export interface DashboardBackupCard {
+  lastBackupAt: string | null
+  status: DriveBackupStatusLabel
+  statusLabel: string
+  localPath: string | null
+  uploadedToDrive: boolean
+  driveFileId: string | null
+  fileName: string | null
+}
+
+export interface GoogleDriveStatus {
+  configured: boolean
+  connected: boolean
+  accountEmail: string | null
+  folderId: string | null
+  lastError: string | null
 }
 
 export interface AuditLogSummary {
@@ -300,6 +341,9 @@ export interface AppSettings {
   backupFolder: string
   autoBackupEnabled: boolean
   autoBackupOnClose: boolean
+  backupScheduledEnabled: boolean
+  backupIntervalHours: number
+  allowSurplus: boolean
 }
 
 export interface PublicSettings {
@@ -339,6 +383,7 @@ export interface HomeTicketStats {
   total: number
   vendidas: number
   disponible: number
+  sinVender: number
   enAbonos: number
   cancelada: number
   perdida: number
@@ -352,6 +397,8 @@ export interface HomeFinance {
   ingresosMesDeltaPct: number | null
   egresosMes: number
   balanceMes: number
+  recaudado: number
+  porCobrar: number
 }
 
 export interface HomeOverview {
@@ -359,6 +406,9 @@ export interface HomeOverview {
   companyName: string
   finance: HomeFinance | null
   tickets: HomeTicketStats
+  sellerCount: number
+  buyerCount: number
+  backup: DashboardBackupCard | null
   charts: {
     ingresos7Dias: ChartPoint[]
     estadosBoletas: ChartPoint[]
@@ -380,11 +430,14 @@ export interface DashboardSnapshot {
   total: number
   vendidas: number
   disponible: number
+  sinVender: number
   enAbonos: number
   cancelada: number
   perdida: number
   liquidadas: number
   pendienteLiquidacion: number
+  sellerCount: number
+  buyerCount: number
   periodFrom: string
   periodTo: string
   charts: {

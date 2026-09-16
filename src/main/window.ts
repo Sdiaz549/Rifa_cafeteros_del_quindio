@@ -9,7 +9,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 1100,
     minHeight: 700,
     show: false,
-    title: 'RIFA — Cafeteros del Quindío',
+    title: 'Sistema de Rifas',
     backgroundColor: '#0f3d2e',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),

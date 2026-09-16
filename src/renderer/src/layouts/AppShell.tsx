@@ -42,7 +42,7 @@ const mainNav: Array<{
   end?: boolean
   permission: Permission | null
 }> = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true, permission: null },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true, permission: null },
   { to: '/boletas', label: 'Boletas', icon: Ticket, permission: null },
   { to: '/boletas-sin-vender', label: 'Boletas sin vender', icon: TicketX, permission: 'unsold:view' },
   { to: '/abonos', label: 'Abonos', icon: WalletCards, permission: 'payments:create' },
@@ -75,6 +75,7 @@ export function AppShell() {
   const [query, setQuery] = useState('')
   const [now, setNow] = useState(() => new Date())
   const [settings, setSettings] = useState<PublicSettings | null>(null)
+  const [appVersion, setAppVersion] = useState('')
   const [listening, setListening] = useState(false)
   const [voiceHint, setVoiceHint] = useState('')
   const [pendingVoice, setPendingVoice] = useState<VoicePending | null>(null)
@@ -94,6 +95,9 @@ export function AppShell() {
   useEffect(() => {
     void window.api.settings.getPublic().then((res) => {
       if (res.ok) setSettings(res.data)
+    })
+    void window.api.app.getInfo().then((res) => {
+      if (res.ok) setAppVersion(res.data.version)
     })
     if (can('payments:create')) {
       void window.api.paymentMethods.listActive().then((res) => {
@@ -392,7 +396,7 @@ export function AppShell() {
         </main>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-dash-line bg-white px-5 py-2 text-[11px] text-dash-muted">
-          <p>Sistema de Gestión de Rifas v1.0</p>
+          <p>Sistema de Rifas {appVersion ? `v${appVersion}` : ''}</p>
           <p className="inline-flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-brand-600" />
             Base de datos: Local

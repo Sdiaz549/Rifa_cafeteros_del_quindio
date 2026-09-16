@@ -28,8 +28,8 @@
   --color-accent-red-dark: #9b1c1c;
   --color-danger: #c62828;
 
-  --color-ticket-available: #fff9c4;
-  --color-ticket-partial: #ffe082;
+  --color-ticket-available: #ffffff;
+  --color-ticket-partial: #fff9c4;
   --color-ticket-paid: #8cff4a;
   --color-ticket-lost: #e53935;
 
@@ -214,9 +214,7 @@
     letter-spacing: 0.04em;
     content-visibility: auto;
     contain-intrinsic-size: 52px;
-    transition:
-      transform 140ms ease,
-      box-shadow 140ms ease;
+    contain: layout style;
   }
 
   .ticket-cell:hover {
@@ -289,17 +287,18 @@
       0 3px 8px rgba(0, 0, 0, 0.45);
   }
 
+  .ticket-sin-vender,
   .ticket-disponible {
-    background: #fff9c4;
-    border-color: #f6e05e;
+    background: #ffffff;
+    border-color: #d7e0dc;
     border-style: solid;
-    color: #5c4a00;
+    color: #3d4a45;
   }
 
   .ticket-en-abonos {
-    background: var(--color-ticket-partial);
-    border-color: #f0c84a;
-    color: #5c4400;
+    background: #fff9c4;
+    border-color: #f6e05e;
+    color: #5c4a00;
   }
 
   .ticket-cancelada {

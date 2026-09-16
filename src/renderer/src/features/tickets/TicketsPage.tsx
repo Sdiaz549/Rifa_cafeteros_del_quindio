@@ -1,25 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Grid2X2, List, Ticket, X } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
 import { formatTicketNumber } from '@shared/tickets/numbers'
+import { boardStatsFromPacked, packTicketCell } from '@shared/tickets/board'
 import { cn } from '../../lib/cn'
 import { PageHeader } from '../../components/PageHeader'
 import { useAuth } from '../auth/AuthContext'
 import { AssignSellerForm } from './AssignSellerForm'
+import { TicketBoardCanvas } from './TicketBoardCanvas'
 
-const PAGE_SIZE = 500
+const PAGE_SIZE = 80
 
 const statusClass: Record<TicketStatus, string> = {
-  DISPONIBLE: 'ticket-disponible',
+  SIN_VENDER: 'ticket-sin-vender',
   EN_ABONOS: 'ticket-en-abonos',
   CANCELADA: 'ticket-cancelada',
   PERDIDA: 'ticket-perdida'
 }
 
 const statusLabel: Record<TicketStatus, string> = {
-  DISPONIBLE: 'Disponible',
+  SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
   PERDIDA: 'Perdida'
@@ -36,6 +38,8 @@ export function TicketsPage() {
   const [status, setStatus] = useState<TicketStatus | ''>('')
   const [items, setItems] = useState<TicketSummary[]>([])
   const [total, setTotal] = useState(0)
+  const [boardFirst, setBoardFirst] = useState(0)
+  const [packed, setPacked] = useState<number[]>([])
   const [stats, setStats] = useState<Record<string, number> | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -56,23 +60,38 @@ export function TicketsPage() {
   }, [initialQ])
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 280)
+    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 180)
     return () => window.clearTimeout(t)
   }, [query])
 
   useEffect(() => {
-    void window.api.tickets.stats().then((res) => {
-      if (res.ok) setStats(res.data)
-    })
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      setError(null)
+      const res = await window.api.tickets.board()
+      if (cancelled) return
+      if (!res.ok) {
+        setError(res.error)
+        setPacked([])
+      } else {
+        setBoardFirst(res.data.first)
+        setPacked(res.data.packed)
+        setStats(boardStatsFromPacked(res.data.packed))
+      }
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
+    if (view !== 'list') return
     let cancelled = false
     const gen = ++listGen.current
     loadingMoreRef.current = false
     void (async () => {
-      setLoading(true)
-      setError(null)
       const res = await window.api.tickets.list({
         query: debouncedQuery || undefined,
         status: status || undefined,
@@ -88,13 +107,12 @@ export function TicketsPage() {
         setItems(res.data.items)
         setTotal(res.data.total)
       }
-      setLoading(false)
       setLoadingMore(false)
     })()
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, status])
+  }, [view, debouncedQuery, status])
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMoreRef.current) return
@@ -130,26 +148,47 @@ export function TicketsPage() {
   }, [debouncedQuery, status, loading])
 
   useEffect(() => {
-    if (loading || items.length >= total || total === 0) return
-    void loadMore()
-  }, [loading, items.length, total, loadMore])
-
-  useEffect(() => {
     const el = sentinelRef.current
     if (!el || loading) return
+    const root = el.closest('main')
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) void loadMore()
       },
-      { rootMargin: '800px' }
+      { root: root instanceof Element ? root : null, rootMargin: '600px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
   }, [view, loading, items.length, loadMore])
 
+  const onPick = useCallback(
+    (number: number, ticketStatus: TicketStatus, isSettled: boolean) => {
+      if (ticketStatus === 'SIN_VENDER' && can('tickets:sell')) {
+        setAssignStep('choose')
+        setSelectedTicket({
+          id: `board-${number}`,
+          number,
+          status: ticketStatus,
+          isSettled,
+          sellerId: null,
+          sellerName: null,
+          buyerId: null,
+          buyerName: null,
+          totalAmount: 0,
+          totalPaid: 0,
+          balanceDue: 0,
+          soldAt: null
+        })
+        return
+      }
+      navigate(`/boletas/${number}`)
+    },
+    [can, navigate]
+  )
+
   const legend = useMemo(
     () => [
-      { label: 'Disponible', className: 'ticket-disponible' },
+      { label: 'Sin vender', className: 'ticket-sin-vender' },
       { label: 'En abonos', className: 'ticket-en-abonos' },
       { label: 'Cancelada', className: 'ticket-cancelada' },
       { label: 'Perdida', className: 'ticket-perdida' }
@@ -161,7 +200,7 @@ export function TicketsPage() {
     { label: 'Total de boletas', value: stats?.total, tone: 'bg-white' },
     { label: 'Vendidas', value: stats?.vendidas, tone: 'bg-brand-50' },
     { label: 'En abonos', value: stats?.enAbonos, tone: 'bg-[#FFE082]' },
-    { label: 'Disponibles', value: stats?.disponible, tone: 'bg-[#FFF9C4]' }
+    { label: 'Sin vender', value: stats?.disponible, tone: 'bg-white' }
   ]
 
   function openAvailable(t: TicketSummary) {
@@ -169,22 +208,19 @@ export function TicketsPage() {
     setSelectedTicket(t)
   }
 
-  function onCellClick(e: MouseEvent, t: TicketSummary) {
-    if (t.status === 'DISPONIBLE' && can('tickets:sell')) {
-      e.preventDefault()
-      openAvailable(t)
-    }
-  }
-
   async function refreshAfterAssign(number: number) {
-    const [ticketRes, statsRes] = await Promise.all([
-      window.api.tickets.getByNumber(number),
-      window.api.tickets.stats()
-    ])
+    const ticketRes = await window.api.tickets.getByNumber(number)
     if (ticketRes.ok) {
-      setItems((prev) => prev.map((t) => (t.number === number ? { ...t, ...ticketRes.data } : t)))
+      const t = ticketRes.data
+      setPacked((prev) => {
+        const next = prev.slice()
+        const i = number - boardFirst
+        if (i >= 0 && i < next.length) next[i] = packTicketCell(t.status, t.isSettled)
+        setStats(boardStatsFromPacked(next))
+        return next
+      })
+      setItems((prev) => prev.map((row) => (row.number === number ? { ...row, ...t } : row)))
     }
-    if (statsRes.ok) setStats(statsRes.data)
     setSelectedTicket(null)
     setAssignStep('choose')
   }
@@ -264,7 +300,7 @@ export function TicketsPage() {
               className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none ring-brand-700/20 focus:ring-2"
             >
               <option value="">Todos los estados</option>
-              <option value="DISPONIBLE">Disponible</option>
+              <option value="SIN_VENDER">Sin vender</option>
               <option value="EN_ABONOS">En abonos</option>
               <option value="CANCELADA">Cancelada</option>
               <option value="PERDIDA">Perdida</option>
@@ -276,41 +312,22 @@ export function TicketsPage() {
       {loading && <p className="text-ink-muted">Cargando boletas…</p>}
       {error && <p className="text-accent-red">{error}</p>}
 
-      {!loading && !error && items.length > 0 && view === 'grid' && (
+      {!loading && !error && packed.length > 0 && view === 'grid' && (
         <div className="app-card p-4">
-          <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 md:grid-cols-10">
-            {items.map((t) => (
-              <Link
-                key={t.id}
-                to={`/boletas/${t.number}`}
-                onClick={(e) => onCellClick(e, t)}
-                className={cn('ticket-cell', statusClass[t.status])}
-                title={t.buyerName ?? t.sellerName ?? statusLabel[t.status]}
-              >
-                {formatTicketNumber(t.number)}
-                {t.isSettled && (
-                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand-800 ring-2 ring-white" />
-                )}
-              </Link>
-            ))}
-          </div>
-          <div ref={sentinelRef} className="h-8" />
-          <div className="mt-2 space-y-2 text-center">
-            <p className="text-xs text-ink-muted">
-              {items.length < total
-                ? `Cargando boletas… ${items.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')}`
-                : `${total.toLocaleString('es-CO')} boletas`}
-            </p>
-            {items.length < total && (
-              <button type="button" className="btn-ghost text-xs" onClick={() => void loadMore()}>
-                {loadingMore ? 'Cargando…' : 'Cargar más'}
-              </button>
-            )}
-          </div>
+          <TicketBoardCanvas
+            first={boardFirst}
+            packed={packed}
+            statusFilter={status}
+            query={debouncedQuery}
+            onPick={onPick}
+          />
+          <p className="mt-3 text-center text-xs text-ink-muted">
+            {packed.length.toLocaleString('es-CO')} boletas
+          </p>
         </div>
       )}
 
-      {!loading && !error && items.length > 0 && view === 'list' && (
+      {!loading && !error && view === 'list' && items.length > 0 && (
         <div className="app-card overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead className="bg-brand-50 text-ink-muted">
@@ -328,7 +345,7 @@ export function TicketsPage() {
               {items.map((t) => (
                 <tr key={t.id} className="border-t border-line hover:bg-brand-50/40">
                   <td className="px-4 py-2.5">
-                    {t.status === 'DISPONIBLE' && can('tickets:sell') ? (
+                    {t.status === 'SIN_VENDER' && can('tickets:sell') ? (
                       <button
                         type="button"
                         className="font-semibold text-brand-800"
@@ -359,7 +376,7 @@ export function TicketsPage() {
                   <td className="px-4 py-2.5">{formatCop(t.totalPaid)}</td>
                   <td className="px-4 py-2.5">{formatCop(t.balanceDue)}</td>
                   <td className="px-4 py-2.5 text-right">
-                    {t.status === 'DISPONIBLE' && can('tickets:sell') && (
+                    {t.status === 'SIN_VENDER' && can('tickets:sell') && (
                       <button
                         type="button"
                         className="rounded-lg bg-forest px-3 py-1 text-xs font-semibold text-white"
@@ -392,7 +409,12 @@ export function TicketsPage() {
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && view === 'grid' && packed.length === 0 && (
+        <div className="app-card border-dashed p-10 text-center text-ink-muted">
+          No hay boletas para mostrar.
+        </div>
+      )}
+      {!loading && !error && view === 'list' && items.length === 0 && (
         <div className="app-card border-dashed p-10 text-center text-ink-muted">
           No hay boletas para mostrar.
         </div>

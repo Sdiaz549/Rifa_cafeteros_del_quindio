@@ -8,16 +8,35 @@ import {
 } from 'node:fs'
 import { basename, join } from 'node:path'
 import { BrowserWindow, dialog } from 'electron'
+import type { BackupRecord, BackupTrigger } from '@prisma/client'
 import { format } from 'date-fns'
 import { disconnectPrisma, getPrisma } from '../db/client'
-import { getDataDir, getDatabasePath } from '../paths'
+import { getBackupsPath, getDatabasePath } from '../paths'
 import { clearSession, requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { SETTING_KEYS } from '../../shared/constants'
-import type { ApiResult, BackupSummary } from '../../shared/types'
+import type { ApiResult, BackupSettings, BackupSummary, DashboardBackupCard, DriveBackupStatusLabel } from '../../shared/types'
+import { backupRepository } from '../repositories/backupRepository'
+import { googleDriveBackupService } from './googleDriveBackupService'
+import { snapshotDatabaseFile, restoreDatabaseFile } from '../backup/localSnapshot'
+import { logError, logInfo } from '../logging/appLogger'
 
 export function buildBackupFileName(date = new Date()): string {
-  return `backup_rifa_${format(date, 'yyyy-MM-dd_HHmm')}.db`
+  return `backup_${format(date, 'yyyy-MM-dd_HH-mm-ss')}.db`
+}
+
+function driveStatusLabel(row: {
+  status: string
+  uploadedToDrive: boolean
+  errorMessage: string | null
+}): { status: DriveBackupStatusLabel; statusLabel: string } {
+  if (row.status === 'ERROR' || row.errorMessage) {
+    return { status: 'ERROR', statusLabel: 'Error' }
+  }
+  if (row.uploadedToDrive || row.status === 'UPLOADED') {
+    return { status: 'UPLOADED', statusLabel: 'Guardado en Google Drive' }
+  }
+  return { status: 'PENDING', statusLabel: 'Pendiente' }
 }
 
 function mapBackup(r: {
@@ -25,10 +44,15 @@ function mapBackup(r: {
   fileName: string
   filePath: string
   createdAt: Date
-  trigger: string
+  trigger: BackupTrigger | string
   createdByUserId: string | null
   sizeBytes: number
   notes: string | null
+  status?: string
+  uploadedToDrive?: boolean
+  driveFileId?: string | null
+  driveUploadedAt?: Date | null
+  errorMessage?: string | null
   createdBy: { fullName: string } | null
 }): BackupSummary {
   return {
@@ -40,7 +64,26 @@ function mapBackup(r: {
     createdByUserId: r.createdByUserId,
     createdByName: r.createdBy?.fullName ?? null,
     sizeBytes: r.sizeBytes,
-    notes: r.notes
+    notes: r.notes,
+    status: (r.status as BackupSummary['status']) ?? 'LOCAL',
+    uploadedToDrive: r.uploadedToDrive ?? false,
+    driveFileId: r.driveFileId ?? null,
+    driveUploadedAt: r.driveUploadedAt?.toISOString() ?? null,
+    errorMessage: r.errorMessage ?? null
+  }
+}
+
+function toDashboardCard(row: BackupRecord | null): DashboardBackupCard | null {
+  if (!row) return null
+  const { status, statusLabel } = driveStatusLabel(row)
+  return {
+    lastBackupAt: row.createdAt.toISOString(),
+    status,
+    statusLabel,
+    localPath: row.filePath,
+    uploadedToDrive: row.uploadedToDrive,
+    driveFileId: row.driveFileId,
+    fileName: row.fileName
   }
 }
 
@@ -60,34 +103,34 @@ async function writeSetting(key: string, value: string, userId?: string): Promis
 async function resolveBackupFolder(userId?: string): Promise<string> {
   let folder = await readSetting(SETTING_KEYS.backupFolder, '')
   if (!folder) {
-    folder = join(getDataDir(), 'backups')
+    folder = getBackupsPath()
     await writeSetting(SETTING_KEYS.backupFolder, folder, userId)
   }
   if (!existsSync(folder)) mkdirSync(folder, { recursive: true })
   return folder
 }
 
-export async function getBackupSettings(): Promise<
-  ApiResult<{
-    backupFolder: string
-    autoBackupEnabled: boolean
-    autoBackupOnClose: boolean
-  }>
-> {
+export async function getBackupSettings(): Promise<ApiResult<BackupSettings>> {
   try {
     const session = requireSession()
     assertPermission(session.role, 'backups:manage')
     const folder = await resolveBackupFolder(session.userId)
-    const [auto, onClose] = await Promise.all([
+    const [auto, onClose, scheduled, interval, surplus] = await Promise.all([
       readSetting(SETTING_KEYS.autoBackupEnabled, 'true'),
-      readSetting(SETTING_KEYS.autoBackupOnClose, 'true')
+      readSetting(SETTING_KEYS.autoBackupOnClose, 'true'),
+      readSetting(SETTING_KEYS.backupScheduledEnabled, 'false'),
+      readSetting(SETTING_KEYS.backupIntervalHours, '24'),
+      readSetting(SETTING_KEYS.allowSurplus, 'false')
     ])
     return {
       ok: true,
       data: {
         backupFolder: folder,
         autoBackupEnabled: auto === 'true',
-        autoBackupOnClose: onClose === 'true'
+        autoBackupOnClose: onClose === 'true',
+        backupScheduledEnabled: scheduled === 'true',
+        backupIntervalHours: Number(interval) || 24,
+        allowSurplus: surplus === 'true'
       }
     }
   } catch (e) {
@@ -102,6 +145,9 @@ export async function updateBackupSettings(input: {
   backupFolder?: string
   autoBackupEnabled?: boolean
   autoBackupOnClose?: boolean
+  backupScheduledEnabled?: boolean
+  backupIntervalHours?: number
+  allowSurplus?: boolean
 }): Promise<ApiResult<{ saved: true }>> {
   try {
     const session = requireSession()
@@ -121,6 +167,27 @@ export async function updateBackupSettings(input: {
       await writeSetting(
         SETTING_KEYS.autoBackupOnClose,
         input.autoBackupOnClose ? 'true' : 'false',
+        session.userId
+      )
+    }
+    if (input.backupScheduledEnabled != null) {
+      await writeSetting(
+        SETTING_KEYS.backupScheduledEnabled,
+        input.backupScheduledEnabled ? 'true' : 'false',
+        session.userId
+      )
+    }
+    if (input.backupIntervalHours != null) {
+      await writeSetting(
+        SETTING_KEYS.backupIntervalHours,
+        String(Math.max(1, Math.trunc(input.backupIntervalHours))),
+        session.userId
+      )
+    }
+    if (input.allowSurplus != null) {
+      await writeSetting(
+        SETTING_KEYS.allowSurplus,
+        input.allowSurplus ? 'true' : 'false',
         session.userId
       )
     }
@@ -193,10 +260,15 @@ export async function createBackup(input?: {
         trigger,
         createdByUserId: session.userId,
         sizeBytes,
-        notes: input?.notes ?? null
+        notes: input?.notes ?? null,
+        status: 'LOCAL',
+        uploadedToDrive: false
       },
       include: { createdBy: true }
     })
+
+    await writeSetting(SETTING_KEYS.lastBackupAt, record.createdAt.toISOString(), session.userId)
+    await writeSetting(SETTING_KEYS.lastBackupStatus, 'PENDING', session.userId)
 
     await prisma.auditLog.create({
       data: {
@@ -209,8 +281,10 @@ export async function createBackup(input?: {
       }
     })
 
+    logInfo('backup.created', { fileName, filePath, trigger, sizeBytes })
     return { ok: true, data: mapBackup(record) }
   } catch (e) {
+    logError('backup.create.failed', e)
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'Error al crear backup'
@@ -239,7 +313,7 @@ export async function listBackups(): Promise<ApiResult<BackupSummary[]>> {
 export async function restoreBackup(input: {
   backupId?: string
   filePath?: string
-}): Promise<ApiResult<{ restored: true; filePath: string }>> {
+}): Promise<ApiResult<{ restored: true; filePath: string; requiresRestart: true }>> {
   try {
     const session = requireSession()
     assertPermission(session.role, 'backups:manage')
@@ -274,26 +348,19 @@ export async function restoreBackup(input: {
       return { ok: false, error: 'El archivo de backup no existe.' }
     }
 
+    snapshotDatabaseFile('pre-restore')
     await createBackup({
       trigger: 'PRE_RESTORE',
       notes: `Antes de restaurar ${basename(sourcePath)}`
     })
 
     await disconnectPrisma()
-    copyFileSync(sourcePath, getDatabasePath())
-    for (const suffix of ['-wal', '-shm'] as const) {
-      const side = `${getDatabasePath()}${suffix}`
-      if (existsSync(side)) {
-        try {
-          unlinkSync(side)
-        } catch {
-          /* ignore */
-        }
-      }
-    }
+    restoreDatabaseFile(sourcePath)
+    logInfo('backup.restored', { sourcePath })
 
     clearSession()
     const restored = getPrisma()
+    await restored.$connect()
     await restored.auditLog.create({
       data: {
         userId,
@@ -305,8 +372,9 @@ export async function restoreBackup(input: {
       }
     })
 
-    return { ok: true, data: { restored: true, filePath: sourcePath } }
+    return { ok: true, data: { restored: true, filePath: sourcePath, requiresRestart: true } }
   } catch (e) {
+    logError('backup.restore.failed', e)
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'Error al restaurar backup'
@@ -344,7 +412,7 @@ export async function maybeBackupOnClose(): Promise<void> {
     })
 
     const files = readdirSync(folder)
-      .filter((f) => f.startsWith('backup_rifa_') && f.endsWith('.db'))
+      .filter((f) => f.endsWith('.db') && (f.startsWith('backup_') || f.startsWith('backup_rifa_')))
       .map((f) => ({ f, mtime: statSync(join(folder, f)).mtimeMs }))
       .sort((a, b) => b.mtime - a.mtime)
     for (const old of files.slice(30)) {
@@ -357,4 +425,90 @@ export async function maybeBackupOnClose(): Promise<void> {
   } catch (e) {
     console.error('[backup] on-close failed', e)
   }
+}
+
+export async function listLocalBackups(): Promise<ApiResult<BackupSummary[]>> {
+  return listBackups()
+}
+
+export async function getLatestBackupCard(): Promise<DashboardBackupCard | null> {
+  const row = await backupRepository().latest()
+  return toDashboardCard(row)
+}
+
+export async function latestBackup(): Promise<ApiResult<DashboardBackupCard | null>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'backups:manage')
+    return { ok: true, data: await getLatestBackupCard() }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al consultar el último respaldo' }
+  }
+}
+
+export async function uploadBackupToDrive(input?: {
+  backupId?: string
+}): Promise<ApiResult<BackupSummary>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'backups:manage')
+    const repo = backupRepository()
+    const row = input?.backupId ? await repo.findById(input.backupId) : await repo.latest()
+    if (!row) {
+      return { ok: false, error: 'No hay un respaldo local para subir.' }
+    }
+    try {
+      const uploaded = await googleDriveBackupService.uploadBackupToDrive(row.filePath)
+      const updated = await repo.markDriveUpload(row.id, uploaded.id)
+      await writeSetting(SETTING_KEYS.lastBackupStatus, 'UPLOADED', session.userId)
+      return { ok: true, data: mapBackup(updated) }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al subir a Drive'
+      await repo.markError(row.id, message)
+      await writeSetting(SETTING_KEYS.lastBackupStatus, 'ERROR', session.userId)
+      return { ok: false, error: message }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al subir respaldo a Drive' }
+  }
+}
+
+export async function listDriveBackups(): Promise<ApiResult<{ files: { id: string; name: string; createdTime: string; sizeBytes: number }[] }>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'backups:manage')
+    const files = await googleDriveBackupService.listDriveBackups()
+    return { ok: true, data: { files } }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al listar backups de Drive' }
+  }
+}
+
+export async function deleteOldBackups(keep = 30): Promise<ApiResult<{ deleted: number }>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'backups:manage')
+    const folder = await resolveBackupFolder(session.userId)
+    if (!existsSync(folder)) return { ok: true, data: { deleted: 0 } }
+    const files = readdirSync(folder)
+      .filter((f) => f.endsWith('.db') && (f.startsWith('backup_') || f.startsWith('backup_rifa_')))
+      .map((f) => ({ f, mtime: statSync(join(folder, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime)
+    let deleted = 0
+    for (const old of files.slice(Math.max(1, keep))) {
+      try {
+        unlinkSync(join(folder, old.f))
+        deleted += 1
+      } catch {
+        /* ignore */
+      }
+    }
+    return { ok: true, data: { deleted } }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al eliminar backups antiguos' }
+  }
+}
+
+export function getDriveStatus() {
+  return googleDriveBackupService.getStatus()
 }

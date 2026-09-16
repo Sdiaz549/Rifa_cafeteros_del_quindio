@@ -57,13 +57,30 @@ export async function listBuyers(input?: {
           }
         : undefined,
       include: {
-        _count: { select: { tickets: true } },
-        tickets: { select: { balanceDue: true } }
+        _count: { select: { tickets: true } }
       },
       orderBy: { fullName: 'asc' },
       take: input?.take ?? 100
     })
-    return { ok: true, data: buyers.map(mapBuyer) }
+    const ids = buyers.map((b) => b.id)
+    const balances =
+      ids.length === 0
+        ? []
+        : await prisma.ticket.groupBy({
+            by: ['buyerId'],
+            where: { buyerId: { in: ids } },
+            _sum: { balanceDue: true }
+          })
+    const balanceMap = new Map(balances.map((row) => [row.buyerId as string, row._sum.balanceDue ?? 0]))
+    return {
+      ok: true,
+      data: buyers.map((b) =>
+        mapBuyer({
+          ...b,
+          tickets: [{ balanceDue: balanceMap.get(b.id) ?? 0 }]
+        })
+      )
+    }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al listar compradores' }
   }

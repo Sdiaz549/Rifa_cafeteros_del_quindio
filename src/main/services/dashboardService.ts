@@ -3,6 +3,10 @@ import { requireSession } from '../auth/session'
 import { assertPermission, hasPermission } from '../../shared/permissions'
 import { COMPANY_NAME, SETTING_KEYS } from '../../shared/constants'
 import type { ApiResult, ChartPoint, DashboardSnapshot, HomeOverview } from '../../shared/types'
+import { buyerRepository } from '../repositories/buyerRepository'
+import { sellerRepository } from '../repositories/sellerRepository'
+import { getLatestBackupCard } from './backupService'
+import { queryTicketCounts } from './ticketService'
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -87,15 +91,11 @@ export async function getAdminDashboard(input?: {
       egresosPeriodo,
       recaudado,
       porCobrar,
-      total,
-      disponible,
-      enAbonos,
-      cancelada,
-      perdida,
-      liquidadas,
-      pendLiq,
+      ticketCounts,
       paymentsInPeriod,
-      methods
+      methods,
+      sellerCount,
+      buyerCount
     ] = await Promise.all([
       sumPayments({ status: 'ACTIVO', paidAt: { gte: startDay } }),
       sumPayments({ status: 'ACTIVO', paidAt: { gte: startMonth } }),
@@ -107,19 +107,25 @@ export async function getAdminDashboard(input?: {
         where: { status: 'EN_ABONOS' },
         _sum: { balanceDue: true }
       }),
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: 'DISPONIBLE' } }),
-      prisma.ticket.count({ where: { status: 'EN_ABONOS' } }),
-      prisma.ticket.count({ where: { status: 'CANCELADA' } }),
-      prisma.ticket.count({ where: { status: 'PERDIDA' } }),
-      prisma.ticket.count({ where: { isSettled: true } }),
-      prisma.ticket.count({ where: { status: 'CANCELADA', isSettled: false } }),
+      queryTicketCounts(),
       prisma.payment.findMany({
         where: { status: 'ACTIVO', paidAt: { gte: from, lte: to } },
         select: { amount: true, paidAt: true, paymentMethod: { select: { name: true } } }
       }),
-      prisma.paymentMethod.findMany({ select: { name: true } })
+      prisma.paymentMethod.findMany({ select: { name: true } }),
+      sellerRepository().count(),
+      buyerRepository().count()
     ])
+
+    const {
+      total,
+      disponible,
+      enAbonos,
+      cancelada,
+      perdida,
+      liquidadas,
+      pendLiq
+    } = ticketCounts
 
     const dayMap = new Map<string, number>()
     const cursor = startOfDay(from)
@@ -147,7 +153,7 @@ export async function getAdminDashboard(input?: {
       .filter(([, value]) => value > 0)
       .map(([label, value]) => ({ label, value }))
     const estadosBoletas: ChartPoint[] = [
-      { label: 'Disponible', value: disponible },
+      { label: 'Sin vender', value: disponible },
       { label: 'En abonos', value: enAbonos },
       { label: 'Cancelada', value: cancelada },
       { label: 'Perdida', value: perdida }
@@ -167,11 +173,14 @@ export async function getAdminDashboard(input?: {
         total,
         vendidas: total - disponible,
         disponible,
+        sinVender: disponible,
         enAbonos,
         cancelada,
         perdida,
         liquidadas,
         pendienteLiquidacion: pendLiq,
+        sellerCount,
+        buyerCount,
         periodFrom: from.toISOString(),
         periodTo: to.toISOString(),
         charts: { ingresosPorDia, estadosBoletas, metodosPago }
@@ -211,25 +220,19 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
     }
 
     const [
-      total,
-      disponible,
-      enAbonos,
-      cancelada,
-      perdida,
-      liquidadas,
+      ticketCounts,
       companyName,
       raffleName,
       recentSalesRaw,
       recentPaymentsRaw,
       sellerGroups,
-      weekPayments
+      weekPayments,
+      sellerCount,
+      buyerCount,
+      recaudadoTotal,
+      porCobrarAgg
     ] = await Promise.all([
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: 'DISPONIBLE' } }),
-      prisma.ticket.count({ where: { status: 'EN_ABONOS' } }),
-      prisma.ticket.count({ where: { status: 'CANCELADA' } }),
-      prisma.ticket.count({ where: { status: 'PERDIDA' } }),
-      prisma.ticket.count({ where: { isSettled: true } }),
+      queryTicketCounts(),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.companyName } }),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.raffleName } }),
       prisma.sale.findMany({
@@ -253,7 +256,7 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
       }),
       prisma.ticket.groupBy({
         by: ['sellerId'],
-        where: { sellerId: { not: null }, status: { not: 'DISPONIBLE' } },
+        where: { sellerId: { not: null }, status: { not: 'SIN_VENDER' } },
         _count: { _all: true },
         orderBy: { _count: { sellerId: 'desc' } },
         take: 5
@@ -261,9 +264,17 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
       prisma.payment.findMany({
         where: { status: 'ACTIVO', paidAt: { gte: sevenStart } },
         select: { amount: true, paidAt: true }
+      }),
+      sellerRepository().count(),
+      buyerRepository().count(),
+      prisma.payment.aggregate({ where: { status: 'ACTIVO' }, _sum: { amount: true } }),
+      prisma.ticket.aggregate({
+        where: { status: 'EN_ABONOS' },
+        _sum: { balanceDue: true }
       })
     ])
 
+    const { total, disponible, enAbonos, cancelada, perdida, liquidadas, vendidas } = ticketCounts
     const sellerIds = sellerGroups.map((g) => g.sellerId).filter((id): id is string => Boolean(id))
     const sellers = sellerIds.length
       ? await prisma.seller.findMany({
@@ -314,7 +325,9 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
         ingresosMes,
         ingresosMesDeltaPct: deltaPct(ingresosMes, ingresosMesAnt),
         egresosMes,
-        balanceMes: ingresosMes - egresosMes
+        balanceMes: ingresosMes - egresosMes,
+        recaudado: recaudadoTotal._sum.amount ?? 0,
+        porCobrar: porCobrarAgg._sum.balanceDue ?? 0
       }
     }
 
@@ -326,13 +339,17 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
         finance,
         tickets: {
           total,
-          vendidas: total - disponible,
+          vendidas,
           disponible,
+          sinVender: disponible,
           enAbonos,
           cancelada,
           perdida,
           liquidadas
         },
+        sellerCount,
+        buyerCount,
+        backup: canFinance ? await getLatestBackupCard() : null,
         charts: {
           ingresos7Dias,
           estadosBoletas: [

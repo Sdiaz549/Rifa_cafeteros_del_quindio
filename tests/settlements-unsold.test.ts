@@ -13,7 +13,7 @@ describe('settlement rules', () => {
     expect(canSettle('CANCELADA', false)).toBe(true)
     expect(canSettle('CANCELADA', true)).toBe(false)
     expect(canSettle('EN_ABONOS', false)).toBe(false)
-    expect(canSettle('DISPONIBLE', false)).toBe(false)
+    expect(canSettle('SIN_VENDER', false)).toBe(false)
     expect(canSettle('PERDIDA', false)).toBe(false)
   })
 

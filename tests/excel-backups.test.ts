@@ -39,6 +39,6 @@ describe('excel export helpers', () => {
 describe('backup helpers', () => {
   it('builds a dated sqlite backup filename', () => {
     const name = buildBackupFileName(new Date('2026-09-05T15:30:00'))
-    expect(name).toBe('backup_rifa_2026-09-05_1530.db')
+    expect(name).toBe('backup_2026-09-05_15-30-00.db')
   })
 })

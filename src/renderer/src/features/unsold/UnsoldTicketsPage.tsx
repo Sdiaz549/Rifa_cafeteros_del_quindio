@@ -33,11 +33,7 @@ export function UnsoldTicketsPage() {
   }
 
   useEffect(() => {
-    void load()
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => void load(query, onlyWithSeller), 250)
+    const t = setTimeout(() => void load(query, onlyWithSeller), query ? 250 : 0)
     return () => clearTimeout(t)
   }, [query, onlyWithSeller])
 
@@ -55,7 +51,7 @@ export function UnsoldTicketsPage() {
       <div>
         <h1 className="font-display text-3xl font-bold text-brand-900">Boletas sin vender</h1>
         <p className="text-sm text-ink-muted">
-          Agrupación por vendedor de boletas en estado disponible (DISPONIBLE).
+          Agrupación por vendedor de boletas en estado sin vender (SIN_VENDER).
         </p>
       </div>
 
