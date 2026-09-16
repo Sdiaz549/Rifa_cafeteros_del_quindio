@@ -1,6 +1,19 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { grantMicrophoneAccess } from './mediaPermissions'
+import { logError, logInfo } from './logging/appLogger'
+
+function bringToFront(win: BrowserWindow): void {
+  if (win.isDestroyed()) return
+  win.center()
+  win.show()
+  win.setAlwaysOnTop(true)
+  win.focus()
+  win.moveTop()
+  setTimeout(() => {
+    if (!win.isDestroyed()) win.setAlwaysOnTop(false)
+  }, 8000)
+}
 
 export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -8,9 +21,10 @@ export function createMainWindow(): BrowserWindow {
     height: 860,
     minWidth: 1100,
     minHeight: 700,
-    show: false,
+    show: true,
     title: 'Sistema de Rifas',
     backgroundColor: '#0f3d2e',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
@@ -22,8 +36,21 @@ export function createMainWindow(): BrowserWindow {
 
   grantMicrophoneAccess(win.webContents.session)
 
-  win.on('ready-to-show', () => {
-    win.show()
+  win.once('ready-to-show', () => bringToFront(win))
+  bringToFront(win)
+
+  win.on('closed', () => {
+    logInfo('app.window.closed')
+  })
+  win.webContents.on('did-finish-load', () => {
+    logInfo('app.window.loaded', { url: win.webContents.getURL() })
+    bringToFront(win)
+  })
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    logError('window.did-fail-load', { code, desc, url })
+  })
+  win.webContents.on('render-process-gone', (_e, details) => {
+    logError('window.render-gone', details)
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {

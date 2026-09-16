@@ -3,8 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Grid2X2, List, Ticket, X } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
-import { formatTicketNumber } from '@shared/tickets/numbers'
-import { boardStatsFromPacked, packTicketCell } from '@shared/tickets/board'
+import { boardStatsFromPacked, boardIndexForQuery, packTicketCell, unpackTicketCell } from '@shared/tickets/board'
+import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { cn } from '../../lib/cn'
 import { PageHeader } from '../../components/PageHeader'
 import { useAuth } from '../auth/AuthContext'
@@ -114,6 +114,15 @@ export function TicketsPage() {
     }
   }, [view, debouncedQuery, status])
 
+  useEffect(() => {
+    if (view !== 'list' || !debouncedQuery) return
+    const n = parseTicketNumber(debouncedQuery)
+    const el =
+      (n != null ? document.getElementById(`ticket-row-${n}`) : null) ??
+      document.querySelector('#ticket-row-list tbody tr')
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [view, debouncedQuery, items[0]?.id])
+
   const loadMore = useCallback(async () => {
     if (loading || loadingMoreRef.current) return
     const skip = itemsRef.current.length
@@ -203,6 +212,20 @@ export function TicketsPage() {
     { label: 'Sin vender', value: stats?.disponible, tone: 'bg-white' }
   ]
 
+  const searchHit = useMemo(() => {
+    const q = debouncedQuery.trim()
+    if (!q || packed.length === 0) return null
+    const index = boardIndexForQuery(boardFirst, packed.length, q)
+    if (index == null) {
+      const n = parseTicketNumber(q)
+      if (n == null) return null
+      return { missing: true as const, number: n, label: q }
+    }
+    const number = boardFirst + index
+    const cell = unpackTicketCell(packed[index])
+    return { missing: false as const, number, ...cell }
+  }, [debouncedQuery, boardFirst, packed])
+
   function openAvailable(t: TicketSummary) {
     setAssignStep('choose')
     setSelectedTicket(t)
@@ -226,7 +249,7 @@ export function TicketsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       <div className="app-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <PageHeader
@@ -288,12 +311,21 @@ export function TicketsPage() {
             ))}
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar número…"
-              className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none ring-brand-700/20 focus:ring-2"
-            />
+            <form
+              className="contents"
+              onSubmit={(e) => {
+                e.preventDefault()
+                setDebouncedQuery(query.trim())
+              }}
+            >
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar número…"
+                inputMode="numeric"
+                className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none ring-brand-700/20 focus:ring-2"
+              />
+            </form>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TicketStatus | '')}
@@ -308,6 +340,41 @@ export function TicketsPage() {
           </div>
         </div>
       </div>
+
+      {searchHit?.missing && (
+        <p className="sticky top-0 z-20 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+          No hay una boleta {searchHit.number != null
+            ? formatTicketNumber(searchHit.number)
+            : searchHit.label} en esta rifa.
+        </p>
+      )}
+      {searchHit && !searchHit.missing && (
+        <button
+          type="button"
+          className="sticky top-0 z-20 flex w-full items-center justify-between gap-3 rounded-xl border border-forest/20 bg-brand-50 px-4 py-3 text-left shadow-sm transition hover:bg-brand-100"
+          onClick={() => onPick(searchHit.number, searchHit.status, searchHit.isSettled)}
+        >
+          <span>
+            <span className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+              Boleta encontrada
+            </span>
+            <span className="mt-0.5 flex items-center gap-2 font-display text-2xl font-bold text-brand-900">
+              {formatTicketNumber(searchHit.number)}
+              {searchHit.isSettled ? (
+                <span className="text-sm font-semibold text-ink-muted">Liquidada</span>
+              ) : null}
+            </span>
+          </span>
+          <span
+            className={cn(
+              'rounded-md border px-2 py-0.5 text-xs font-medium',
+              statusClass[searchHit.status]
+            )}
+          >
+            {statusLabel[searchHit.status]}
+          </span>
+        </button>
+      )}
 
       {loading && <p className="text-ink-muted">Cargando boletas…</p>}
       {error && <p className="text-accent-red">{error}</p>}
@@ -329,7 +396,7 @@ export function TicketsPage() {
 
       {!loading && !error && view === 'list' && items.length > 0 && (
         <div className="app-card overflow-hidden">
-          <table className="w-full text-left text-sm">
+          <table id="ticket-row-list" className="w-full text-left text-sm">
             <thead className="bg-brand-50 text-ink-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Número</th>
@@ -343,7 +410,7 @@ export function TicketsPage() {
             </thead>
             <tbody>
               {items.map((t) => (
-                <tr key={t.id} className="border-t border-line hover:bg-brand-50/40">
+                <tr key={t.id} id={`ticket-row-${t.number}`} className="border-t border-line hover:bg-brand-50/40">
                   <td className="px-4 py-2.5">
                     {t.status === 'SIN_VENDER' && can('tickets:sell') ? (
                       <button

@@ -1,4 +1,5 @@
 import type { TicketStatus } from '../types'
+import { formatTicketNumber, parseTicketNumber } from './numbers'
 
 export const BOARD_STATUSES = ['SIN_VENDER', 'EN_ABONOS', 'CANCELADA', 'PERDIDA'] as const
 
@@ -12,6 +13,22 @@ export function unpackTicketCell(packed: number): { status: TicketStatus; isSett
     status: BOARD_STATUSES[packed & 3] ?? 'SIN_VENDER',
     isSettled: (packed & 4) !== 0
   }
+}
+
+/** Índice en el tablero de la boleta buscada, o null si no existe. */
+export function boardIndexForQuery(first: number, count: number, query: string): number | null {
+  const q = query.trim()
+  if (!q || count <= 0) return null
+  const exact = parseTicketNumber(q)
+  if (exact != null) {
+    const i = exact - first
+    return i >= 0 && i < count ? i : null
+  }
+  for (let i = 0; i < count; i++) {
+    const n = first + i
+    if (String(n).includes(q) || formatTicketNumber(n).includes(q)) return i
+  }
+  return null
 }
 
 export function boardStatsFromPacked(packed: number[]): {

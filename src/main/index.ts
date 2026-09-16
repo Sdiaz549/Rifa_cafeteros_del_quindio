@@ -62,6 +62,7 @@ app.whenReady().then(async () => {
   registerDefaultVoiceHandlers()
   registerIpcHandlers()
   createMainWindow()
+  logInfo('app.window.created')
   void startBackupScheduler(async () => {
     await createBackup({ trigger: 'INTERVAL', notes: 'Backup automático por intervalo' })
   })
@@ -82,6 +83,7 @@ async function initializeDatabase(): Promise<void> {
     await runMigrations()
     await ensureRequiredData()
     await ensureTicketRange()
+    logInfo('db.init.ok')
   } catch (error) {
     logError('db.init.failed', errorToLog(error))
     await disconnectPrisma()

@@ -10,7 +10,7 @@ import {
 } from '../src/shared/domain/ticketStatus'
 import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parseCommand'
 import { formatTicketNumber, parseTicketNumber, ticketNumberBounds } from '../src/shared/tickets/numbers'
-import { packTicketCell, unpackTicketCell, boardStatsFromPacked } from '../src/shared/tickets/board'
+import { packTicketCell, unpackTicketCell, boardStatsFromPacked, boardIndexForQuery } from '../src/shared/tickets/board'
 
 describe('ticket numbers', () => {
   it('uses 0000–9999 for 10.000 boletas', () => {
@@ -38,6 +38,14 @@ describe('ticket board packing', () => {
     expect(stats.liquidadas).toBe(1)
     expect(stats.pendLiq).toBe(1)
     expect(stats.vendidas).toBe(2)
+  })
+
+  it('finds a ticket index from the search query', () => {
+    expect(boardIndexForQuery(0, 10_000, '0042')).toBe(42)
+    expect(boardIndexForQuery(0, 10_000, '42')).toBe(42)
+    expect(boardIndexForQuery(0, 10_000, '9999')).toBe(9999)
+    expect(boardIndexForQuery(0, 10_000, '10000')).toBe(null)
+    expect(boardIndexForQuery(0, 10_000, '')).toBe(null)
   })
 })
 

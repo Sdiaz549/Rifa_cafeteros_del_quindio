@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react'
 import type { TicketStatus } from '@shared/types'
-import { formatTicketNumber } from '@shared/tickets/numbers'
-import { unpackTicketCell } from '@shared/tickets/board'
+import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
+import { boardIndexForQuery, unpackTicketCell } from '@shared/tickets/board'
 
 const GAP = 6
 const ASPECT = 1.15
@@ -27,6 +27,21 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
   return null
 }
 
+function scrollCellIntoView(wrap: HTMLElement, index: number, cols: number, rowH: number): void {
+  const row = Math.floor(index / cols)
+  const scroller = scrollParent(wrap)
+  const wrapRect = wrap.getBoundingClientRect()
+  if (scroller) {
+    const sRect = scroller.getBoundingClientRect()
+    const cellTop = scroller.scrollTop + (wrapRect.top - sRect.top) + row * rowH
+    const margin = Math.min(scroller.clientHeight * 0.28, 180)
+    scroller.scrollTo({ top: Math.max(0, cellTop - margin), behavior: 'smooth' })
+    return
+  }
+  const cellTop = window.scrollY + wrapRect.top + row * rowH
+  window.scrollTo({ top: Math.max(0, cellTop - 140), behavior: 'smooth' })
+}
+
 export function TicketBoardCanvas({
   first,
   packed,
@@ -43,6 +58,7 @@ export function TicketBoardCanvas({
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const layoutRef = useRef({ cols: 10, rowH: 48, cellW: 40, width: 800 })
+  const scrolledKeyRef = useRef('')
 
   useEffect(() => {
     const wrap = wrapRef.current
@@ -60,6 +76,15 @@ export function TicketBoardCanvas({
       const rows = Math.max(1, Math.ceil(packed.length / cols))
       wrap.style.height = `${rows * rowH}px`
       layoutRef.current = { cols, rowH, cellW, width }
+
+      const scrollKey = `${query}|${first}|${packed.length}|${cols}`
+      if (scrollKey !== scrolledKeyRef.current) {
+        scrolledKeyRef.current = scrollKey
+        const hit = boardIndexForQuery(first, packed.length, query)
+        if (hit != null) {
+          requestAnimationFrame(() => scrollCellIntoView(wrap, hit, cols, rowH))
+        }
+      }
 
       const viewTop = scroller ? scroller.getBoundingClientRect().top : 0
       const viewH = scroller ? scroller.clientHeight : window.innerHeight
@@ -85,7 +110,7 @@ export function TicketBoardCanvas({
       ctx.textBaseline = 'middle'
 
       const q = query.trim()
-      const qNumber = q && /^\d+$/.test(q) ? Number(q) : null
+      const qNumber = parseTicketNumber(q)
       const statusIndex =
         statusFilter === 'SIN_VENDER'
           ? 0
@@ -108,7 +133,11 @@ export function TicketBoardCanvas({
           const number = first + i
           const dim =
             (statusIndex >= 0 && status !== statusIndex) ||
-            (qNumber != null && number !== qNumber && !String(number).includes(q))
+            (qNumber != null && number !== qNumber) ||
+            (qNumber == null &&
+              q.length > 0 &&
+              !String(number).includes(q) &&
+              !formatTicketNumber(number).includes(q))
           const x = col * (cellW + GAP)
           const y = (row - startRow) * rowH
           ctx.globalAlpha = dim ? 0.22 : 1
