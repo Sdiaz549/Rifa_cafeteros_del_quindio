@@ -1,0 +1,72 @@
+# electron-builder — instalador Windows NSIS
+# Nombre visible: "Sistema de Rifas"
+# Para cambiarlo, edite productName (abajo) y APP_USER_DATA_FOLDER en src/main/paths.ts
+
+appId: com.cafeteros.sistemarifas
+productName: Sistema de Rifas
+copyright: Cafeteros del Quindío
+artifactName: SistemaRifas-Setup-${version}.${ext}
+
+directories:
+  buildResources: resources
+  output: release
+
+files:
+  - from: out
+    to: out
+    filter:
+      - '**/*'
+  - from: node_modules/.prisma
+    to: node_modules/.prisma
+    filter:
+      - '**/*'
+  - package.json
+
+asar: true
+asarUnpack:
+  - '**/*.node'
+  - '**/node_modules/.prisma/**'
+  - '**/node_modules/@prisma/client/**'
+  - '**/node_modules/@prisma/engines/**'
+
+extraResources:
+  - from: prisma
+    to: prisma
+    filter:
+      - schema.prisma
+      - sql/**/*
+  - from: node_modules/.prisma/client
+    to: prisma-client
+    filter:
+      - '*.node'
+      - '*.dll'
+      - 'schema.prisma'
+
+npmRebuild: false
+
+extraMetadata:
+  main: out/main/index.js
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: SistemaRifas-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Sistema de Rifas
+  uninstallDisplayName: Sistema de Rifas ${version}
+  deleteAppDataOnUninstall: false
+  displayLanguageSelector: false
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  runAfterFinish: true
+
