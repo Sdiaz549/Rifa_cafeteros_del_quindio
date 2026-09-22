@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
@@ -7,7 +8,7 @@ import type { TicketStatus } from '../../shared/types'
 import { DEFAULT_TICKET_COUNT, SETTING_KEYS } from '../../shared/constants'
 import { ticketNumberBounds } from '../../shared/tickets/numbers'
 import { z } from 'zod'
-import { invalidateTicketBoard, loadTicketBoardSnapshot } from './ticketBoardCache'
+import { invalidateTicketBoard, loadTicketBoardSnapshot, updateTicketBoardCell } from './ticketBoardCache'
 
 const ticketListSelect = {
   id: true,
@@ -99,6 +100,8 @@ function mapTicket(t: {
 export async function listTickets(input?: {
   query?: string
   status?: TicketStatus
+  isSettled?: boolean
+  sellerId?: string
   take?: number
   skip?: number
 }): Promise<ApiResult<{ items: TicketSummary[]; total: number }>> {
@@ -106,12 +109,15 @@ export async function listTickets(input?: {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
     const prisma = getPrisma()
-    const take = Math.min(Math.max(input?.take ?? 250, 1), 500)
+    const take = Math.min(Math.max(input?.take ?? 250, 1), 10000)
     const skip = Math.max(input?.skip ?? 0, 0)
     const q = input?.query?.trim()
 
     const where: Record<string, unknown> = {}
     if (input?.status) where.status = input.status
+    if (input?.isSettled === true) where.isSettled = true
+    if (input?.isSettled === false) where.isSettled = false
+    if (input?.sellerId) where.sellerId = input.sellerId
     if (q) {
       const asNumber = Number(q)
       where.OR = [
@@ -170,14 +176,117 @@ export async function getTicketByNumber(
   }
 }
 
+const setBuyerSchema = z.object({
+  ticketNumber: z.number().int().nonnegative(),
+  fullName: z.string().min(2)
+})
+
+export async function setTicketBuyer(raw: unknown): Promise<ApiResult<TicketSummary>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'tickets:sell')
+    const parsed = setBuyerSchema.safeParse(raw)
+    if (!parsed.success) {
+      return { ok: false, error: 'Indique el nombre del comprador.' }
+    }
+    const fullName = parsed.data.fullName.trim()
+    const prisma = getPrisma()
+    const updated = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({
+        where: { number: parsed.data.ticketNumber },
+        select: ticketListSelect
+      })
+      if (!ticket) {
+        throw new Error(`No existe la boleta ${parsed.data.ticketNumber}.`)
+      }
+
+      if (ticket.buyerId) {
+        const current = await tx.buyer.findUnique({ where: { id: ticket.buyerId } })
+        if (current && current.fullName.trim().toLocaleLowerCase('es') === fullName.toLocaleLowerCase('es')) {
+          return ticket
+        }
+        const otherTickets = current
+          ? await tx.ticket.count({ where: { buyerId: current.id, NOT: { id: ticket.id } } })
+          : 0
+        if (current && otherTickets === 0) {
+          await tx.buyer.update({ where: { id: current.id }, data: { fullName } })
+          const renamed = await tx.ticket.findUnique({
+            where: { id: ticket.id },
+            select: ticketListSelect
+          })
+          await tx.auditLog.create({
+            data: {
+              userId: session.userId,
+              module: 'BOLETAS',
+              action: 'COMPRADOR_ACTUALIZADO',
+              entity: 'Ticket',
+              entityId: ticket.id,
+              previousValue: JSON.stringify({ buyerId: ticket.buyerId, buyerName: current.fullName }),
+              newValue: JSON.stringify({
+                ticketNumber: ticket.number,
+                buyerId: current.id,
+                buyerName: fullName
+              }),
+              origin: 'MANUAL'
+            }
+          })
+          return renamed ?? ticket
+        }
+      }
+
+      const existing = await tx.buyer.findFirst({ where: { fullName } })
+      const buyer = existing
+        ? existing
+        : await tx.buyer.create({
+            data: {
+              fullName,
+              documentId: `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+              phone: ''
+            }
+          })
+
+      await tx.sale.updateMany({
+        where: { ticketId: ticket.id, status: 'ACTIVO' },
+        data: { buyerId: buyer.id }
+      })
+      const ticketUpdated = await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { buyerId: buyer.id },
+        select: ticketListSelect
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          module: 'BOLETAS',
+          action: 'COMPRADOR_ASIGNADO',
+          entity: 'Ticket',
+          entityId: ticket.id,
+          previousValue: JSON.stringify({ buyerId: ticket.buyerId }),
+          newValue: JSON.stringify({
+            ticketNumber: ticket.number,
+            buyerId: buyer.id,
+            buyerName: buyer.fullName
+          }),
+          origin: 'MANUAL'
+        }
+      })
+      return ticketUpdated
+    })
+
+    return { ok: true, data: mapTicket(updated as never) }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al guardar el comprador' }
+  }
+}
+
 const assignSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
   sellerId: z.string().min(1).optional(),
   seller: z
     .object({
       fullName: z.string().min(2),
-      documentId: z.string().min(3),
-      phone: z.string().min(5),
+      documentId: z.string().optional(),
+      phone: z.string().optional(),
       address: z.string().optional()
     })
     .optional()
@@ -212,15 +321,17 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
 
       let sellerId = input.sellerId
       if (input.seller) {
-        const existing = await tx.seller.findUnique({
-          where: { documentId: input.seller.documentId }
-        })
+        const documentId = input.seller.documentId?.trim() ?? ''
+        const phone = input.seller.phone?.trim() ?? ''
+        const existing = documentId
+          ? await tx.seller.findUnique({ where: { documentId } })
+          : null
         if (existing) {
           const seller = await tx.seller.update({
             where: { id: existing.id },
             data: {
               fullName: input.seller.fullName,
-              phone: input.seller.phone,
+              phone: phone || existing.phone,
               address: input.seller.address || existing.address,
               status: 'ACTIVO'
             }
@@ -230,8 +341,8 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
           const created = await tx.seller.create({
             data: {
               fullName: input.seller.fullName,
-              documentId: input.seller.documentId,
-              phone: input.seller.phone,
+              documentId: documentId || `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+              phone,
               address: input.seller.address || null,
               status: 'ACTIVO'
             }
@@ -293,7 +404,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
       return ticketUpdated
     })
 
-    invalidateTicketBoard()
+    updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
     return { ok: true, data: mapTicket(updated as never) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al asignar la boleta' }
@@ -343,7 +454,7 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
       return result
     })
 
-    invalidateTicketBoard()
+    updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
     return { ok: true, data: mapTicket(updated as never) }
   } catch (e) {
     return {

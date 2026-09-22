@@ -1,35 +1,47 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Users } from 'lucide-react'
 import { formatCop } from '@shared/money'
+import { formatDateCo } from '@shared/dates'
+import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { BuyerSummary } from '@shared/types'
 import { PageHeader } from '../../components/PageHeader'
 
-const emptyForm = {
-  fullName: '',
-  documentId: '',
-  phone: '',
-  address: '',
-  email: '',
-  notes: ''
+const statusLabel: Record<string, string> = {
+  SIN_VENDER: 'Sin vender',
+  EN_ABONOS: 'En abonos',
+  CANCELADA: 'Cancelada',
+  PERDIDA: 'Perdida'
+}
+
+function displayDoc(value: string | null | undefined): string {
+  if (!value || value.startsWith('SC-')) return '—'
+  return value
+}
+
+function displayPhone(value: string | null | undefined): string {
+  return value?.trim() ? value : '—'
 }
 
 export function BuyersPage() {
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<BuyerSummary[]>([])
-  const [form, setForm] = useState(emptyForm)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
 
   async function load(q?: string) {
     setLoading(true)
-    const res = await window.api.buyers.list({ query: q || undefined, take: 100 })
+    const res = await window.api.buyers.list({ query: q || undefined, take: 200 })
     setLoading(false)
     if (!res.ok) {
       toast.error(res.error)
       return
     }
     setItems(res.data)
+    setSelectedId((current) =>
+      current && res.data.some((b) => b.id === current) ? current : (res.data[0]?.id ?? null)
+    )
   }
 
   useEffect(() => {
@@ -37,150 +49,148 @@ export function BuyersPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    const res = await window.api.buyers.upsert({
-      fullName: form.fullName.trim(),
-      documentId: form.documentId.trim(),
-      phone: form.phone.trim(),
-      address: form.address.trim() || null,
-      email: form.email.trim() || null,
-      notes: form.notes.trim() || null
-    })
-    setSaving(false)
-    if (!res.ok) {
-      toast.error(res.error)
-      return
-    }
-    toast.success('Comprador guardado')
-    setForm(emptyForm)
-    await load(query)
-  }
+  const selected = items.find((b) => b.id === selectedId) ?? null
 
   return (
     <div className="space-y-6">
       <PageHeader
         icon={<Users size={22} />}
         title="Compradores"
-        description="Crear, editar y buscar compradores por cédula o nombre."
+        description="Consulta de compradores, sus boletas y los abonos registrados."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <form onSubmit={onSubmit} className="app-card space-y-3 p-5">
-          <h2 className="font-semibold text-brand-900">Nuevo / actualizar</h2>
-          <input
-            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Nombre completo"
-            value={form.fullName}
-            onChange={(e) => setForm((s) => ({ ...s, fullName: e.target.value }))}
-            required
-          />
-          <input
-            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Cédula"
-            value={form.documentId}
-            onChange={(e) => setForm((s) => ({ ...s, documentId: e.target.value }))}
-            required
-          />
-          <input
-            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Teléfono"
-            value={form.phone}
-            onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
-            required
-          />
-          <input
-            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Dirección"
-            value={form.address}
-            onChange={(e) => setForm((s) => ({ ...s, address: e.target.value }))}
-          />
-          <input
-            className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Correo (opcional)"
-            value={form.email}
-            onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-          />
-          <textarea
-            className="min-h-20 w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Observaciones"
-            value={form.notes}
-            onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))}
-          />
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full rounded-xl bg-brand-800 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {saving ? 'Guardando…' : 'Guardar comprador'}
-          </button>
-        </form>
+      <input
+        className="w-full max-w-xl rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
+        placeholder="Buscar por nombre, cédula, teléfono o número de boleta…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
-        <div className="space-y-3">
-          <input
-            className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
-            placeholder="Buscar comprador…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <div className="app-card overflow-hidden">
-            <table className="data-table">
-              <thead>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="app-card overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-brand-50 text-ink-muted">
+              <tr>
+                <th className="px-4 py-3 font-medium">Nombre</th>
+                <th className="px-4 py-3 font-medium">Cédula</th>
+                <th className="px-4 py-3 font-medium">Teléfono</th>
+                <th className="px-4 py-3 font-medium">Boletas</th>
+                <th className="px-4 py-3 font-medium">Abonado</th>
+                <th className="px-4 py-3 font-medium">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
                 <tr>
-                  <th className="px-4 py-3 font-medium">Nombre</th>
-                  <th className="px-4 py-3 font-medium">Cédula</th>
-                  <th className="px-4 py-3 font-medium">Teléfono</th>
-                  <th className="px-4 py-3 font-medium">Boletas</th>
-                  <th className="px-4 py-3 font-medium">Saldo</th>
-                  <th className="px-4 py-3 font-medium"></th>
+                  <td colSpan={6} className="px-4 py-6 text-ink-muted">
+                    Cargando…
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-ink-muted">
-                      Cargando…
-                    </td>
-                  </tr>
-                )}
-                {!loading && items.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-ink-muted">
-                      Sin compradores
-                    </td>
-                  </tr>
-                )}
-                {items.map((b) => (
-                  <tr key={b.id} className="border-t border-line">
-                    <td className="px-4 py-2.5 font-medium">{b.fullName}</td>
-                    <td className="px-4 py-2.5">{b.documentId}</td>
-                    <td className="px-4 py-2.5">{b.phone}</td>
-                    <td className="px-4 py-2.5">{b.ticketsCount ?? 0}</td>
-                    <td className="px-4 py-2.5">{formatCop(b.balanceDue ?? 0)}</td>
-                    <td className="px-4 py-2.5">
-                      <button
-                        type="button"
-                        className="text-brand-800 underline"
-                        onClick={() =>
-                          setForm({
-                            fullName: b.fullName,
-                            documentId: b.documentId,
-                            phone: b.phone,
-                            address: b.address ?? '',
-                            email: b.email ?? '',
-                            notes: b.notes ?? ''
-                          })
-                        }
-                      >
-                        Editar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              )}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-ink-muted">
+                    No hay compradores para mostrar.
+                  </td>
+                </tr>
+              )}
+              {items.map((b) => (
+                <tr
+                  key={b.id}
+                  className={`cursor-pointer border-t border-line ${selectedId === b.id ? 'bg-brand-50' : 'hover:bg-dash-bg'}`}
+                  onClick={() => setSelectedId(b.id)}
+                >
+                  <td className="px-4 py-2.5 font-medium">{b.fullName}</td>
+                  <td className="px-4 py-2.5">{displayDoc(b.documentId)}</td>
+                  <td className="px-4 py-2.5">{displayPhone(b.phone)}</td>
+                  <td className="px-4 py-2.5">
+                    {(b.ticketNumbers ?? []).map((n) => formatTicketNumber(n)).join(', ') || '—'}
+                  </td>
+                  <td className="px-4 py-2.5">{formatCop(b.totalPaid ?? 0)}</td>
+                  <td className="px-4 py-2.5">{formatCop(b.balanceDue ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="app-card space-y-4 p-5">
+          {!selected ? (
+            <p className="text-sm text-ink-muted">Seleccione un comprador para ver sus boletas y abonos.</p>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Comprador</p>
+                <h2 className="font-display mt-1 text-2xl font-semibold text-brand-900">{selected.fullName}</h2>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <dt className="text-ink-muted">Cédula</dt>
+                    <dd className="font-medium">{displayDoc(selected.documentId)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Teléfono</dt>
+                    <dd className="font-medium">{displayPhone(selected.phone)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Dirección</dt>
+                    <dd className="font-medium">{selected.address || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Correo</dt>
+                    <dd className="font-medium">{selected.email || '—'}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {(selected.tickets ?? []).length === 0 ? (
+                <p className="text-sm text-ink-muted">Este comprador no tiene boletas asociadas.</p>
+              ) : (
+                selected.tickets!.map((ticket) => (
+                  <div key={ticket.number} className="rounded-2xl border border-line p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <Link
+                          to={`/boletas/${ticket.number}`}
+                          className="font-display text-xl font-semibold text-brand-800 hover:underline"
+                        >
+                          Boleta {formatTicketNumber(ticket.number)}
+                        </Link>
+                        <p className="text-xs text-ink-muted">{statusLabel[ticket.status] ?? ticket.status}</p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p>Abonado: <strong>{formatCop(ticket.totalPaid)}</strong></p>
+                        <p>Saldo: <strong>{formatCop(ticket.balanceDue)}</strong></p>
+                      </div>
+                    </div>
+                    {ticket.payments.length === 0 ? (
+                      <p className="mt-3 text-sm text-ink-muted">Sin abonos registrados.</p>
+                    ) : (
+                      <table className="mt-3 w-full text-left text-sm">
+                        <thead className="text-xs text-ink-muted">
+                          <tr>
+                            <th className="py-1 font-medium">Fecha</th>
+                            <th className="py-1 font-medium">Valor</th>
+                            <th className="py-1 font-medium">Método</th>
+                            <th className="py-1 font-medium">Observación</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ticket.payments.map((p) => (
+                            <tr key={p.id} className="border-t border-line/70">
+                              <td className="py-1.5">{formatDateCo(p.paidAt)}</td>
+                              <td className="py-1.5 font-medium">{formatCop(p.amount)}</td>
+                              <td className="py-1.5">{p.paymentMethodName}</td>
+                              <td className="py-1.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                ))
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

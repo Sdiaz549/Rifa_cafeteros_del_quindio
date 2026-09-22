@@ -125,4 +125,39 @@ export function registerDefaultVoiceHandlers(): void {
       }
     }
   })
+
+  voiceCommandService.register('IR_ABONOS', async (command) => ({
+    ok: true,
+    action: command.action,
+    message: 'Abrir abonos',
+    navigateTo: command.ticketNumber != null ? `/abonos?boleta=${command.ticketNumber}` : '/abonos'
+  }))
+
+  voiceCommandService.register('IR_BOLETAS', async (command) => ({
+    ok: true,
+    action: command.action,
+    message: 'Abrir boletas',
+    navigateTo: '/boletas'
+  }))
+
+  voiceCommandService.register('IR_COMPRADORES', async (command) => ({
+    ok: true,
+    action: command.action,
+    message: 'Abrir compradores',
+    navigateTo: '/compradores'
+  }))
+
+  voiceCommandService.register('IR_DASHBOARD', async (command) => ({
+    ok: true,
+    action: command.action,
+    message: 'Abrir dashboard',
+    navigateTo: '/'
+  }))
+
+  voiceCommandService.register('IR_REPORTES', async (command) => ({
+    ok: true,
+    action: command.action,
+    message: 'Abrir reportes',
+    navigateTo: '/reportes'
+  }))
 }

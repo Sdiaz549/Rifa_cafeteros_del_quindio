@@ -10,7 +10,7 @@ import type {
   PaymentSummary,
   TicketSummary
 } from '../../shared/types'
-import { invalidateTicketBoard } from './ticketBoardCache'
+import { updateTicketBoardCell } from './ticketBoardCache'
 
 const createPaymentSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
@@ -168,7 +168,7 @@ export async function createPayment(
       return { ticket: updated, payment }
     })
 
-    invalidateTicketBoard()
+    updateTicketBoardCell(result.ticket.number, result.ticket.status, result.ticket.isSettled)
     return {
       ok: true,
       data: {

@@ -3,12 +3,13 @@ import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { canSettle } from '../../shared/domain/ticketStatus'
+import { SETTLEMENT_AMOUNT_PER_TICKET } from '../../shared/constants'
 import type {
   ApiResult,
   SettlementSummary,
   TicketSummary
 } from '../../shared/types'
-import { invalidateTicketBoard } from './ticketBoardCache'
+import { updateTicketBoardCell } from './ticketBoardCache'
 
 const settleSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
@@ -114,7 +115,7 @@ export async function settleTicket(
         throw new Error('La boleta ya tiene una liquidación activa.')
       }
 
-      const amount = input.amount ?? ticket.totalPaid
+      const amount = input.amount ?? SETTLEMENT_AMOUNT_PER_TICKET
       if (amount <= 0) {
         throw new Error('El valor de liquidación debe ser mayor que cero.')
       }
@@ -166,7 +167,7 @@ export async function settleTicket(
       return { ticket: updated, settlement }
     })
 
-    invalidateTicketBoard()
+    updateTicketBoardCell(result.ticket.number, result.ticket.status, result.ticket.isSettled)
     return {
       ok: true,
       data: {
@@ -210,15 +211,14 @@ export async function listPendingSettlements(input?: {
         : {})
     }
 
-    const [items, total, agg] = await Promise.all([
+    const [items, total] = await Promise.all([
       prisma.ticket.findMany({
         where,
         include: { seller: true, buyer: true },
         orderBy: { number: 'asc' },
         take
       }),
-      prisma.ticket.count({ where }),
-      prisma.ticket.aggregate({ where, _sum: { totalPaid: true } })
+      prisma.ticket.count({ where })
     ])
 
     return {
@@ -226,7 +226,7 @@ export async function listPendingSettlements(input?: {
       data: {
         items: items.map(mapTicket),
         total,
-        totalAmount: agg._sum.totalPaid ?? 0
+        totalAmount: total * SETTLEMENT_AMOUNT_PER_TICKET
       }
     }
   } catch (e) {

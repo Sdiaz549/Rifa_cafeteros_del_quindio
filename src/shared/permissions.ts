@@ -32,8 +32,7 @@ const ADMIN_ONLY: Permission[] = [
   'audit:view',
   'reports:financial',
   'export:full',
-  'tickets:mark_lost',
-  'settlements:manage'
+  'tickets:mark_lost'
 ]
 
 const USER_PERMS: Permission[] = [
@@ -42,6 +41,7 @@ const USER_PERMS: Permission[] = [
   'payments:create',
   'buyers:manage',
   'sellers:manage',
+  'settlements:manage',
   'reports:operational',
   'unsold:view'
 ]

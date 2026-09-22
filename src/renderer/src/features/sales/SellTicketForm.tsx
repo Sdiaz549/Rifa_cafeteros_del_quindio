@@ -1,30 +1,35 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { formatCop, parseCopInput } from '@shared/money'
+import { formatCop, parseCopInput, formatCopInputValue } from '@shared/money'
 import { DEFAULT_TICKET_PRICE } from '@shared/constants'
+import { inputDateToIso, todayInputDate } from '@shared/dates'
 import { formatTicketNumber } from '@shared/tickets/numbers'
-import type { BuyerSummary, PaymentMethodSummary, SellerSummary } from '@shared/types'
+import type { PaymentMethodSummary, SellerSummary } from '@shared/types'
+import { cn } from '../../lib/cn'
 
 export function SellTicketForm({
   ticketNumber,
   defaultSellerId,
-  onSold
+  onSold,
+  onCancel,
+  intent = 'sale',
+  embedded = false
 }: {
   ticketNumber: number
   defaultSellerId?: string | null
   onSold?: () => void
+  onCancel?: () => void
+  intent?: 'sale' | 'abono'
+  embedded?: boolean
 }) {
   const [sellerId, setSellerId] = useState('')
-  const [buyerMode, setBuyerMode] = useState<'existing' | 'new'>('existing')
-  const [buyerId, setBuyerId] = useState('')
-  const [buyerQuery, setBuyerQuery] = useState('')
-  const [buyers, setBuyers] = useState<BuyerSummary[]>([])
   const [sellers, setSellers] = useState<SellerSummary[]>([])
   const [methods, setMethods] = useState<PaymentMethodSummary[]>([])
   const [initialPayment, setInitialPayment] = useState('')
   const [paymentMethodId, setPaymentMethodId] = useState('')
+  const [paidAt, setPaidAt] = useState(todayInputDate)
   const [notes, setNotes] = useState('')
-  const [newBuyer, setNewBuyer] = useState({
+  const [buyer, setBuyer] = useState({
     fullName: '',
     documentId: '',
     phone: '',
@@ -52,19 +57,13 @@ export function SellTicketForm({
     })()
   }, [defaultSellerId])
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      void (async () => {
-        const res = await window.api.buyers.list({ query: buyerQuery || undefined, take: 30 })
-        if (res.ok) setBuyers(res.data)
-      })()
-    }, 250)
-    return () => clearTimeout(t)
-  }, [buyerQuery])
-
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     const initialValue = parseCopInput(initialPayment || '0')
+    if (intent === 'abono' && initialValue <= 0) {
+      toast.error('Ingrese el valor del abono')
+      return
+    }
     if (initialValue > DEFAULT_TICKET_PRICE) {
       toast.error('El pago inicial no puede superar el valor de la boleta')
       return
@@ -73,12 +72,8 @@ export function SellTicketForm({
       toast.error('Seleccione vendedor y método de pago')
       return
     }
-    if (buyerMode === 'existing' && !buyerId) {
-      toast.error('Seleccione un comprador')
-      return
-    }
-    if (buyerMode === 'new' && (!newBuyer.fullName || !newBuyer.documentId || !newBuyer.phone)) {
-      toast.error('Complete los datos del comprador nuevo')
+    if (!buyer.fullName.trim()) {
+      toast.error('Escriba el nombre del comprador')
       return
     }
 
@@ -86,11 +81,16 @@ export function SellTicketForm({
     const res = await window.api.sales.create({
       ticketNumber,
       sellerId,
-      buyerId: buyerMode === 'existing' ? buyerId : undefined,
-      buyer: buyerMode === 'new' ? newBuyer : undefined,
+      buyer: {
+        fullName: buyer.fullName.trim(),
+        documentId: buyer.documentId.trim() || undefined,
+        phone: buyer.phone.trim() || undefined,
+        address: buyer.address.trim() || undefined
+      },
       amount: DEFAULT_TICKET_PRICE,
       initialPayment: initialValue,
       paymentMethodId,
+      soldAt: inputDateToIso(paidAt),
       notes: notes || undefined
     })
     setSubmitting(false)
@@ -99,16 +99,29 @@ export function SellTicketForm({
       toast.error(res.error)
       return
     }
-    toast.success(`Venta registrada. Boleta ${formatTicketNumber(ticketNumber)}`)
+    toast.success(
+      intent === 'abono'
+        ? `Abono registrado. Boleta ${formatTicketNumber(ticketNumber)}`
+        : `Venta registrada. Boleta ${formatTicketNumber(ticketNumber)}`
+    )
     onSold?.()
   }
 
   return (
-    <form id="vender" onSubmit={onSubmit} className="app-card space-y-5 p-6">
+    <form
+      id="vender"
+      onSubmit={onSubmit}
+      className={cn(embedded ? 'space-y-5' : 'app-card space-y-5 p-6')}
+    >
       <div>
-        <h2 className="font-display text-2xl font-semibold text-brand-900">Vendida</h2>
+        <h2 className="font-display text-2xl font-semibold text-brand-900">
+          {intent === 'abono' ? 'Registrar abono' : 'Vendida'}
+        </h2>
         <p className="text-sm text-ink-muted">
-          Boleta {formatTicketNumber(ticketNumber)}. Complete comprador y pago para marcarla como vendida.
+          Boleta {formatTicketNumber(ticketNumber)}.
+          {intent === 'abono'
+            ? ' Ingrese el valor del abono, el método de pago y el comprador.'
+            : ' Complete comprador y pago para marcarla como vendida.'}
         </p>
       </div>
 
@@ -151,84 +164,62 @@ export function SellTicketForm({
           <span className="mt-1 block text-xs text-ink-muted">Valor fijo. No se puede modificar.</span>
         </label>
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium">Pago inicial</span>
+          <span className="mb-1.5 block font-medium">
+            {intent === 'abono' ? 'Valor del abono' : 'Pago inicial'}
+          </span>
           <input
             className="w-full rounded-xl border border-line px-3 py-2.5"
             value={initialPayment}
-            onChange={(e) => setInitialPayment(e.target.value)}
-            placeholder="0"
+            onChange={(e) => setInitialPayment(formatCopInputValue(e.target.value))}
+            placeholder="20,000"
+            inputMode="numeric"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1.5 block font-medium">
+            {intent === 'abono' ? 'Fecha del abono' : 'Fecha de venta'}
+          </span>
+          <input
+            type="date"
+            className="w-full rounded-xl border border-line px-3 py-2.5"
+            value={paidAt}
+            onChange={(e) => setPaidAt(e.target.value)}
+            required
           />
         </label>
       </div>
 
       <div className="rounded-2xl border border-line bg-surface p-4">
-        <div className="mb-3 flex gap-2">
-          <button
-            type="button"
-            className={`rounded-lg px-3 py-1.5 text-sm ${buyerMode === 'existing' ? 'bg-brand-800 text-white' : 'bg-white'}`}
-            onClick={() => setBuyerMode('existing')}
-          >
-            Comprador existente
-          </button>
-          <button
-            type="button"
-            className={`rounded-lg px-3 py-1.5 text-sm ${buyerMode === 'new' ? 'bg-brand-800 text-white' : 'bg-white'}`}
-            onClick={() => setBuyerMode('new')}
-          >
-            Comprador nuevo
-          </button>
+        <p className="mb-3 text-sm font-semibold text-brand-900">Datos del comprador</p>
+        <p className="mb-3 text-xs text-ink-muted">
+          Si el comprador ya existe (por cédula o nombre), esta boleta queda en ese mismo comprador.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            className="rounded-xl border border-line px-3 py-2.5 text-sm"
+            placeholder="Nombre completo"
+            value={buyer.fullName}
+            onChange={(e) => setBuyer((s) => ({ ...s, fullName: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-line px-3 py-2.5 text-sm"
+            placeholder="Cédula (opcional)"
+            value={buyer.documentId}
+            onChange={(e) => setBuyer((s) => ({ ...s, documentId: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-line px-3 py-2.5 text-sm"
+            placeholder="Teléfono (opcional)"
+            value={buyer.phone}
+            onChange={(e) => setBuyer((s) => ({ ...s, phone: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-line px-3 py-2.5 text-sm"
+            placeholder="Dirección (opcional)"
+            value={buyer.address}
+            onChange={(e) => setBuyer((s) => ({ ...s, address: e.target.value }))}
+          />
         </div>
-
-        {buyerMode === 'existing' ? (
-          <div className="space-y-3">
-            <input
-              className="w-full rounded-xl border border-line px-3 py-2.5 text-sm"
-              placeholder="Buscar por nombre, cédula o teléfono"
-              value={buyerQuery}
-              onChange={(e) => setBuyerQuery(e.target.value)}
-            />
-            <select
-              className="w-full rounded-xl border border-line px-3 py-2.5 text-sm"
-              value={buyerId}
-              onChange={(e) => setBuyerId(e.target.value)}
-              required={buyerMode === 'existing'}
-            >
-              <option value="">Seleccione…</option>
-              {buyers.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.fullName} — {b.documentId}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              className="rounded-xl border border-line px-3 py-2.5 text-sm"
-              placeholder="Nombre completo"
-              value={newBuyer.fullName}
-              onChange={(e) => setNewBuyer((s) => ({ ...s, fullName: e.target.value }))}
-            />
-            <input
-              className="rounded-xl border border-line px-3 py-2.5 text-sm"
-              placeholder="Cédula"
-              value={newBuyer.documentId}
-              onChange={(e) => setNewBuyer((s) => ({ ...s, documentId: e.target.value }))}
-            />
-            <input
-              className="rounded-xl border border-line px-3 py-2.5 text-sm"
-              placeholder="Teléfono"
-              value={newBuyer.phone}
-              onChange={(e) => setNewBuyer((s) => ({ ...s, phone: e.target.value }))}
-            />
-            <input
-              className="rounded-xl border border-line px-3 py-2.5 text-sm"
-              placeholder="Dirección"
-              value={newBuyer.address}
-              onChange={(e) => setNewBuyer((s) => ({ ...s, address: e.target.value }))}
-            />
-          </div>
-        )}
       </div>
 
       <label className="block text-sm">
@@ -240,13 +231,20 @@ export function SellTicketForm({
         />
       </label>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-xl bg-brand-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-      >
-        {submitting ? 'Guardando…' : 'Vendida'}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        {onCancel && (
+          <button type="button" className="btn-ghost" onClick={onCancel}>
+            Ahora no
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-xl bg-brand-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+        >
+          {submitting ? 'Guardando…' : intent === 'abono' ? 'Registrar abono' : 'Vendida'}
+        </button>
+      </div>
     </form>
   )
 }

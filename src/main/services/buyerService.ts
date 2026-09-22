@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
-import type { ApiResult, BuyerSummary } from '../../shared/types'
+import type { ApiResult, BuyerSummary, BuyerTicketSummary } from '../../shared/types'
 
 const buyerSchema = z.object({
   fullName: z.string().min(2),
@@ -13,6 +13,38 @@ const buyerSchema = z.object({
   notes: z.string().optional().nullable()
 })
 
+function mapTickets(
+  tickets: Array<{
+    number: number
+    status: BuyerTicketSummary['status']
+    totalPaid: number
+    balanceDue: number
+    payments: Array<{
+      id: string
+      amount: number
+      paidAt: Date
+      type: string
+      notes: string | null
+      paymentMethod: { name: string }
+    }>
+  }>
+): BuyerTicketSummary[] {
+  return tickets.map((t) => ({
+    number: t.number,
+    status: t.status,
+    totalPaid: t.totalPaid,
+    balanceDue: t.balanceDue,
+    payments: t.payments.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      paidAt: p.paidAt.toISOString(),
+      type: p.type,
+      paymentMethodName: p.paymentMethod.name,
+      notes: p.notes
+    }))
+  }))
+}
+
 function mapBuyer(b: {
   id: string
   fullName: string
@@ -22,8 +54,22 @@ function mapBuyer(b: {
   email: string | null
   notes: string | null
   _count?: { tickets: number }
-  tickets?: { balanceDue: number }[]
+  tickets?: Array<{
+    number: number
+    status: BuyerTicketSummary['status']
+    totalPaid: number
+    balanceDue: number
+    payments: Array<{
+      id: string
+      amount: number
+      paidAt: Date
+      type: string
+      notes: string | null
+      paymentMethod: { name: string }
+    }>
+  }>
 }): BuyerSummary {
+  const tickets = b.tickets ? mapTickets(b.tickets) : undefined
   return {
     id: b.id,
     fullName: b.fullName,
@@ -32,8 +78,11 @@ function mapBuyer(b: {
     address: b.address,
     email: b.email,
     notes: b.notes,
-    ticketsCount: b._count?.tickets,
-    balanceDue: b.tickets?.reduce((sum, t) => sum + t.balanceDue, 0)
+    ticketsCount: b._count?.tickets ?? tickets?.length,
+    ticketNumbers: tickets?.map((t) => t.number),
+    balanceDue: tickets?.reduce((sum, t) => sum + t.balanceDue, 0),
+    totalPaid: tickets?.reduce((sum, t) => sum + t.totalPaid, 0),
+    tickets
   }
 }
 
@@ -46,40 +95,48 @@ export async function listBuyers(input?: {
     assertPermission(session.role, 'buyers:manage')
     const prisma = getPrisma()
     const q = input?.query?.trim()
+    const ticketNumber = q && Number.isInteger(Number(q)) ? Number(q) : null
     const buyers = await prisma.buyer.findMany({
       where: q
         ? {
             OR: [
               { fullName: { contains: q } },
               { documentId: { contains: q } },
-              { phone: { contains: q } }
+              { phone: { contains: q } },
+              ...(ticketNumber != null ? [{ tickets: { some: { number: ticketNumber } } }] : [])
             ]
           }
         : undefined,
       include: {
-        _count: { select: { tickets: true } }
+        _count: { select: { tickets: true } },
+        tickets: {
+          orderBy: { number: 'asc' },
+          select: {
+            number: true,
+            status: true,
+            totalPaid: true,
+            balanceDue: true,
+            payments: {
+              where: { status: 'ACTIVO' },
+              orderBy: { sequence: 'asc' },
+              select: {
+                id: true,
+                amount: true,
+                paidAt: true,
+                type: true,
+                notes: true,
+                paymentMethod: { select: { name: true } }
+              }
+            }
+          }
+        }
       },
       orderBy: { fullName: 'asc' },
-      take: input?.take ?? 100
+      take: input?.take ?? 200
     })
-    const ids = buyers.map((b) => b.id)
-    const balances =
-      ids.length === 0
-        ? []
-        : await prisma.ticket.groupBy({
-            by: ['buyerId'],
-            where: { buyerId: { in: ids } },
-            _sum: { balanceDue: true }
-          })
-    const balanceMap = new Map(balances.map((row) => [row.buyerId as string, row._sum.balanceDue ?? 0]))
     return {
       ok: true,
-      data: buyers.map((b) =>
-        mapBuyer({
-          ...b,
-          tickets: [{ balanceDue: balanceMap.get(b.id) ?? 0 }]
-        })
-      )
+      data: buyers.map((b) => mapBuyer(b))
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al listar compradores' }
@@ -108,8 +165,7 @@ export async function upsertBuyer(raw: unknown): Promise<ApiResult<BuyerSummary>
             notes: data.notes || null
           },
           include: {
-            _count: { select: { tickets: true } },
-            tickets: { select: { balanceDue: true } }
+            _count: { select: { tickets: true } }
           }
         })
       : await prisma.buyer.create({
@@ -122,8 +178,7 @@ export async function upsertBuyer(raw: unknown): Promise<ApiResult<BuyerSummary>
             notes: data.notes || null
           },
           include: {
-            _count: { select: { tickets: true } },
-            tickets: { select: { balanceDue: true } }
+            _count: { select: { tickets: true } }
           }
         })
 

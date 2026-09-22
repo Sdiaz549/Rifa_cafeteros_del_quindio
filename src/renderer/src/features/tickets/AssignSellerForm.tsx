@@ -2,18 +2,22 @@ import { FormEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { SellerSummary } from '@shared/types'
+import { useAuth } from '../auth/AuthContext'
 
 export function AssignSellerForm({
   ticketNumber,
   currentSellerName,
   defaultSellerId,
-  onAssigned
+  onAssigned,
+  onWantAbono
 }: {
   ticketNumber: number
   currentSellerName?: string | null
   defaultSellerId?: string | null
   onAssigned?: () => void
+  onWantAbono?: (sellerId: string) => void
 }) {
+  const { can } = useAuth()
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [sellerId, setSellerId] = useState(defaultSellerId ?? '')
   const [sellerQuery, setSellerQuery] = useState('')
@@ -25,6 +29,8 @@ export function AssignSellerForm({
     address: ''
   })
   const [submitting, setSubmitting] = useState(false)
+  const [askAbono, setAskAbono] = useState(false)
+  const [assignedSellerId, setAssignedSellerId] = useState('')
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -52,8 +58,8 @@ export function AssignSellerForm({
       toast.error('Seleccione un vendedor')
       return
     }
-    if (mode === 'new' && (!newSeller.fullName || !newSeller.documentId || !newSeller.phone)) {
-      toast.error('Complete nombre, cédula y teléfono del vendedor')
+    if (mode === 'new' && !newSeller.fullName.trim()) {
+      toast.error('Escriba el nombre del vendedor')
       return
     }
 
@@ -61,7 +67,14 @@ export function AssignSellerForm({
     const res = await window.api.tickets.assign({
       ticketNumber,
       sellerId: mode === 'existing' ? sellerId : undefined,
-      seller: mode === 'new' ? newSeller : undefined
+      seller: mode === 'new'
+        ? {
+            fullName: newSeller.fullName.trim(),
+            documentId: newSeller.documentId.trim() || undefined,
+            phone: newSeller.phone.trim() || undefined,
+            address: newSeller.address.trim() || undefined
+          }
+        : undefined
     })
     setSubmitting(false)
     if (!res.ok) {
@@ -69,7 +82,38 @@ export function AssignSellerForm({
       return
     }
     toast.success(`Boleta ${formatTicketNumber(ticketNumber)} asignada al vendedor`)
+    if (can('tickets:sell') && res.data.sellerId) {
+      setAssignedSellerId(res.data.sellerId)
+      setAskAbono(true)
+      return
+    }
     onAssigned?.()
+  }
+
+  if (askAbono) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-display text-2xl font-semibold text-brand-900">¿Registrar un abono?</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            La boleta {formatTicketNumber(ticketNumber)} ya quedó asignada. Si abona ahora, se registra
+            el pago y el comprador.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={() => onAssigned?.()}>
+            No, solo asignar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => onWantAbono?.(assignedSellerId)}
+          >
+            Sí, abonar
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -121,7 +165,9 @@ export function AssignSellerForm({
             <option value="">Seleccione…</option>
             {sellers.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.fullName} — {s.documentId} ({s.ticketsCount ?? 0} boletas)
+                {s.fullName}
+                {s.documentId && !s.documentId.startsWith('SC-') ? ` — ${s.documentId}` : ''} (
+                {s.ticketsCount ?? 0} boletas)
               </option>
             ))}
           </select>
@@ -137,17 +183,15 @@ export function AssignSellerForm({
           />
           <input
             className="rounded-xl border border-line px-3 py-2.5 text-sm"
-            placeholder="Cédula"
+            placeholder="Cédula (opcional)"
             value={newSeller.documentId}
             onChange={(e) => setNewSeller((s) => ({ ...s, documentId: e.target.value }))}
-            required
           />
           <input
             className="rounded-xl border border-line px-3 py-2.5 text-sm"
-            placeholder="Teléfono"
+            placeholder="Teléfono (opcional)"
             value={newSeller.phone}
             onChange={(e) => setNewSeller((s) => ({ ...s, phone: e.target.value }))}
-            required
           />
           <input
             className="rounded-xl border border-line px-3 py-2.5 text-sm"

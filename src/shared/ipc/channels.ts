@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   TICKETS_STATS: 'tickets:stats',
   TICKETS_MARK_LOST: 'tickets:markLost',
   TICKETS_ASSIGN: 'tickets:assign',
+  TICKETS_SET_BUYER: 'tickets:setBuyer',
 
   SALES_CREATE: 'sales:create',
 
@@ -26,6 +27,8 @@ export const IPC_CHANNELS = {
   SELLERS_LIST: 'sellers:list',
   SELLERS_UPSERT: 'sellers:upsert',
   SELLERS_GET_BY_ID: 'sellers:getById',
+  SELLERS_EXPORT_TICKETS_WORD: 'sellers:exportTicketsWord',
+  SELLERS_EXPORT_PAYMENTS_WORD: 'sellers:exportPaymentsWord',
 
   PAYMENT_METHODS_LIST_ACTIVE: 'paymentMethods:listActive',
   PAYMENT_METHODS_LIST: 'paymentMethods:list',
@@ -75,6 +78,8 @@ export const IPC_CHANNELS = {
   DASHBOARD_HOME: 'dashboard:home',
 
   VOICE_PARSE: 'voice:parse',
+  VOICE_LISTEN: 'voice:listen',
+  VOICE_CANCEL: 'voice:cancel',
 
   DRIVE_STATUS: 'drive:status',
 
@@ -84,6 +89,10 @@ export const IPC_CHANNELS = {
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
 
 export const IPC_CHANNEL_SET: ReadonlySet<string> = new Set(Object.values(IPC_CHANNELS))
+
+export const IPC_EVENTS = {
+  TICKETS_BOARD_UPDATED: 'tickets:boardUpdated'
+} as const
 
 export function isAllowedIpcChannel(channel: string): channel is IpcChannel {
   return IPC_CHANNEL_SET.has(channel)

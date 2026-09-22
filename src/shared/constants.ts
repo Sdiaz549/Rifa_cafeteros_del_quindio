@@ -3,6 +3,7 @@ export const APP_DISPLAY_NAME = 'Sistema de Rifas'
 export const COMPANY_NAME = 'Cafeteros del Quindío'
 export const DEFAULT_TICKET_COUNT = 10_000
 export const DEFAULT_TICKET_PRICE = 50_000
+export const SETTLEMENT_AMOUNT_PER_TICKET = 15_000
 export const TICKET_NUMBER_PAD = 4
 
 export const SETTING_KEYS = {

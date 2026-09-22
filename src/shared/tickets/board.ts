@@ -15,6 +15,16 @@ export function unpackTicketCell(packed: number): { status: TicketStatus; isSett
   }
 }
 
+export type TicketBoardFilter = TicketStatus | 'LIQUIDADA' | ''
+
+export function packedCellMatchesFilter(cell: number, filter: TicketBoardFilter): boolean {
+  if (!filter) return true
+  const { status, isSettled } = unpackTicketCell(cell)
+  if (filter === 'LIQUIDADA') return isSettled
+  if (filter === 'CANCELADA') return status === 'CANCELADA' && !isSettled
+  return status === filter
+}
+
 /** Índice en el tablero de la boleta buscada, o null si no existe. */
 export function boardIndexForQuery(first: number, count: number, query: string): number | null {
   const q = query.trim()

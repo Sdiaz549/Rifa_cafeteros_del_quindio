@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCop, parseCopInput, assertNonNegativeMoney } from '../src/shared/money'
+import { formatCop, parseCopInput, formatCopInputValue, assertNonNegativeMoney } from '../src/shared/money'
 import { hasPermission } from '../src/shared/permissions'
 import {
   recalcTicketFinancials,
@@ -9,7 +9,7 @@ import {
   canAssign
 } from '../src/shared/domain/ticketStatus'
 import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parseCommand'
-import { formatTicketNumber, parseTicketNumber, ticketNumberBounds } from '../src/shared/tickets/numbers'
+import { formatTicketNumber, parseTicketNumber, ticketNumberBounds, ticketNumbersTable } from '../src/shared/tickets/numbers'
 import { packTicketCell, unpackTicketCell, boardStatsFromPacked, boardIndexForQuery } from '../src/shared/tickets/board'
 
 describe('ticket numbers', () => {
@@ -19,6 +19,13 @@ describe('ticket numbers', () => {
     expect(formatTicketNumber(9999)).toBe('9999')
     expect(parseTicketNumber('0000')).toBe(0)
     expect(parseTicketNumber('0042')).toBe(42)
+  })
+
+  it('builds a sorted ticket number table', () => {
+    expect(ticketNumbersTable([20, 1, 10], 2)).toEqual([
+      ['0001', '0010'],
+      ['0020', '']
+    ])
   })
 })
 
@@ -56,6 +63,13 @@ describe('money', () => {
 
   it('parses input stripping symbols', () => {
     expect(parseCopInput('$ 50.000')).toBe(50000)
+    expect(parseCopInput('20,000')).toBe(20000)
+  })
+
+  it('formats abono input with comma thousands', () => {
+    expect(formatCopInputValue('20000')).toBe('20,000')
+    expect(formatCopInputValue('20,000')).toBe('20,000')
+    expect(formatCopInputValue('')).toBe('')
   })
 
   it('rejects non-integer money', () => {

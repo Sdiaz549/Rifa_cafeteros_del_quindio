@@ -30,6 +30,8 @@ asarUnpack:
   - '**/node_modules/@prisma/engines/**'
 
 extraResources:
+  - from: resources/windows-listen.cs
+    to: windows-listen.cs
   - from: prisma
     to: prisma
     filter:

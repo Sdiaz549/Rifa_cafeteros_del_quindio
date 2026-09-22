@@ -17,9 +17,33 @@ Funciona **sin Internet**. Un solo computador. Base de datos local.
 
 ## Requisitos
 
-- Node.js 20+
-- npm 10+
-- Windows para el instalador final (desarrollo posible en Linux/macOS)
+- Windows 10/11
+- [Git](https://git-scm.com/download/win)
+- [Node.js 20 LTS](https://nodejs.org/) (incluye npm)
+- No usa Docker. Es un programa de escritorio con instalador `.exe`.
+
+## Instalar en un computador nuevo
+
+Después de formatear el PC:
+
+```bash
+git clone https://github.com/Sdiaz549/Rifa_cafeteros_del_quindio.git
+cd Rifa_cafeteros_del_quindio
+npm install
+npm run dist
+```
+
+Luego ejecute `release\SistemaRifas-Setup-1.0.0.exe`. Crea acceso directo en el escritorio.
+
+El primer usuario es `admin` / `Admin123!`. Cámbielo después de entrar.
+
+La base de datos **no** está en GitHub. Si ya hay rifa en este PC y quiere conservarla, copie antes de formatear:
+
+`%LOCALAPPDATA%\SistemaRifas-dev\database.db`
+
+y, si ya instaló el `.exe`:
+
+`%APPDATA%\SistemaRifas\database.db`
 
 ## Instalación (desarrollo)
 
@@ -65,10 +89,10 @@ Documentación de la Fase 1: `docs/PHASE_1.md`.
 | `npm run dist` | Instalador Windows NSIS (`release/SistemaRifas-Setup-x.y.z.exe`) |
 | `npm run dist:win` | Alias de `npm run dist` |
 | `npm run dist:dir` | Carpeta unpackaged para depurar el paquete |
-
-Si el proyecto está en OneDrive, el empaquetado se hace en `%LOCALAPPDATA%\SistemaRifas-dist` y el `.exe` se copia a `release/`. Así se evita el error EPERM al renombrar `win-unpacked`.
 | `npm run db:seed` | Datos de desarrollo |
 | `npm run db:studio` | Prisma Studio |
+
+Si el proyecto está en OneDrive, el empaquetado se hace en `%LOCALAPPDATA%\SistemaRifas-dist` y el `.exe` se copia a `release/`. Así se evita el error EPERM al renombrar `win-unpacked`.
 
 ## Licencia
 

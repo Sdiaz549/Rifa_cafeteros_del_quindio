@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { UnsoldBySellerSummary } from '@shared/types'
 
 export function UnsoldTicketsPage() {
@@ -132,7 +133,7 @@ export function UnsoldTicketsPage() {
                           to={`/boletas/${t.number}`}
                           className="rounded-lg border border-line bg-brand-50/40 px-2.5 py-1 text-sm font-medium text-brand-900 hover:bg-brand-100"
                         >
-                          #{t.number}
+                          {formatTicketNumber(t.number)}
                         </Link>
                       ))}
                     </div>

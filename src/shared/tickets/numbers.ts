@@ -17,3 +17,17 @@ export function parseTicketNumber(raw: string): number | null {
   if (!Number.isInteger(n) || n < 0) return null
   return n
 }
+
+/** Tabla de boletas: de menor a mayor, `cols` números por fila. */
+export function ticketNumbersTable(numbers: number[], cols = 8): string[][] {
+  const sorted = [...numbers]
+    .filter((n) => Number.isFinite(n) && n >= 0)
+    .sort((a, b) => a - b)
+  const rows: string[][] = []
+  for (let i = 0; i < sorted.length; i += cols) {
+    const row = sorted.slice(i, i + cols).map((n) => formatTicketNumber(n))
+    while (row.length < cols) row.push('')
+    rows.push(row)
+  }
+  return rows
+}

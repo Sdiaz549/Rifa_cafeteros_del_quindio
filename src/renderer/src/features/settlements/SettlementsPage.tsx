@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
+import { SETTLEMENT_AMOUNT_PER_TICKET } from '@shared/constants'
 import { formatDateTimeCo } from '@shared/dates'
 import { ticketStatusLabel } from '@shared/domain/ticketStatus'
+import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { SettlementSummary, TicketSummary } from '@shared/types'
 
 type Tab = 'pendientes' | 'historial'
@@ -90,6 +92,7 @@ export function SettlementsPage() {
     setSettling(selectedNumber)
     const res = await window.api.settlements.create({
       ticketNumber: selectedNumber,
+      amount: SETTLEMENT_AMOUNT_PER_TICKET,
       notes: notes.trim() || undefined
     })
     setSettling(null)
@@ -172,6 +175,7 @@ export function SettlementsPage() {
                     <th className="px-4 py-3">Vendedor</th>
                     <th className="px-4 py-3">Comprador</th>
                     <th className="px-4 py-3">Pagado</th>
+                    <th className="px-4 py-3">A liquidar</th>
                     <th className="px-4 py-3">Estado</th>
                   </tr>
                 </thead>
@@ -190,12 +194,13 @@ export function SettlementsPage() {
                           className="text-brand-800 hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          #{t.number}
+                          {formatTicketNumber(t.number)}
                         </Link>
                       </td>
                       <td className="px-4 py-3">{t.sellerName ?? '—'}</td>
                       <td className="px-4 py-3">{t.buyerName ?? '—'}</td>
                       <td className="px-4 py-3">{formatCop(t.totalPaid)}</td>
+                      <td className="px-4 py-3 font-medium">{formatCop(SETTLEMENT_AMOUNT_PER_TICKET)}</td>
                       <td className="px-4 py-3">{ticketStatusLabel(t.status)}</td>
                     </tr>
                   ))}
@@ -208,7 +213,7 @@ export function SettlementsPage() {
             <h2 className="font-semibold text-brand-900">Liquidar boleta</h2>
             <p className="text-sm text-ink-muted">
               {selectedNumber
-                ? `Seleccionada: #${selectedNumber}`
+                ? `Seleccionada: ${formatTicketNumber(selectedNumber)}. Se pagan ${formatCop(SETTLEMENT_AMOUNT_PER_TICKET)} al vendedor.`
                 : 'Seleccione una fila de la tabla.'}
             </p>
             <textarea
@@ -252,7 +257,7 @@ export function SettlementsPage() {
                     <td className="px-4 py-3">{formatDateTimeCo(s.settledAt)}</td>
                     <td className="px-4 py-3 font-semibold">
                       <Link to={`/boletas/${s.ticketNumber}`} className="text-brand-800 hover:underline">
-                        #{s.ticketNumber}
+                        {formatTicketNumber(s.ticketNumber)}
                       </Link>
                     </td>
                     <td className="px-4 py-3">{s.sellerName}</td>
