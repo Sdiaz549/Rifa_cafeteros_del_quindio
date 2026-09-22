@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS } from '../shared/ipc/channels'
+import { IPC_CHANNELS, IPC_EVENTS } from '../shared/ipc/channels'
 import type {
   ApiResult,
   AuditListResult,
@@ -29,6 +29,7 @@ import type {
   SessionUser,
   SettlementSummary,
   TicketSummary,
+  TicketBoardLiveUpdate,
   TicketBoardSnapshot,
   UnsoldBySellerSummary,
   UserSummary
@@ -45,11 +46,18 @@ const api = {
     list: (payload?: {
       query?: string
       status?: string
+      isSettled?: boolean
+      sellerId?: string
       take?: number
       skip?: number
     }): Promise<ApiResult<{ items: TicketSummary[]; total: number }>> =>
       ipcRenderer.invoke('tickets:list', payload),
     board: (): Promise<ApiResult<TicketBoardSnapshot>> => ipcRenderer.invoke('tickets:board'),
+    onBoardUpdated: (callback: (payload: TicketBoardLiveUpdate) => void): (() => void) => {
+      const listener = (_event: unknown, payload: TicketBoardLiveUpdate) => callback(payload)
+      ipcRenderer.on(IPC_EVENTS.TICKETS_BOARD_UPDATED, listener)
+      return () => ipcRenderer.removeListener(IPC_EVENTS.TICKETS_BOARD_UPDATED, listener)
+    },
     getByNumber: (number: number) => ipcRenderer.invoke('tickets:getByNumber', number),
     stats: () => ipcRenderer.invoke('tickets:stats'),
     markLost: (number: number): Promise<ApiResult<TicketSummary>> =>
@@ -59,11 +67,15 @@ const api = {
       sellerId?: string
       seller?: {
         fullName: string
-        documentId: string
-        phone: string
+        documentId?: string
+        phone?: string
         address?: string
       }
-    }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke('tickets:assign', payload)
+    }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke(IPC_CHANNELS.TICKETS_ASSIGN, payload),
+    setBuyer: (payload: {
+      ticketNumber: number
+      fullName: string
+    }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke(IPC_CHANNELS.TICKETS_SET_BUYER, payload)
   },
   sales: {
     create: (payload: CreateSaleInput): Promise<ApiResult<TicketSummary>> =>
@@ -104,7 +116,11 @@ const api = {
       notes?: string | null
     }): Promise<ApiResult<SellerSummary>> => ipcRenderer.invoke('sellers:upsert', payload),
     getById: (id: string): Promise<ApiResult<SellerSummary>> =>
-      ipcRenderer.invoke('sellers:getById', id)
+      ipcRenderer.invoke('sellers:getById', id),
+    exportTicketsWord: (id: string): Promise<ApiResult<{ filePath: string }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SELLERS_EXPORT_TICKETS_WORD, id),
+    exportPaymentsWord: (id: string): Promise<ApiResult<{ filePath: string }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SELLERS_EXPORT_PAYMENTS_WORD, id)
   },
   paymentMethods: {
     listActive: (): Promise<ApiResult<PaymentMethodSummary[]>> =>
@@ -257,7 +273,9 @@ const api = {
   },
   voice: {
     parse: (raw: string): Promise<ApiResult<{ ok: boolean; action: string; message: string; navigateTo?: string }>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.VOICE_PARSE, raw)
+      ipcRenderer.invoke(IPC_CHANNELS.VOICE_PARSE, raw),
+    listen: (): Promise<ApiResult<{ transcript: string }>> => ipcRenderer.invoke(IPC_CHANNELS.VOICE_LISTEN),
+    cancelListen: (): Promise<ApiResult<{ cancelled: true }>> => ipcRenderer.invoke(IPC_CHANNELS.VOICE_CANCEL)
   },
   drive: {
     status: (): Promise<ApiResult<GoogleDriveStatus>> => ipcRenderer.invoke(IPC_CHANNELS.DRIVE_STATUS)

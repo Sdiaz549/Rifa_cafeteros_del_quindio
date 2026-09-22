@@ -19,6 +19,7 @@ import { ensureRequiredData } from './db/bootstrap'
 import { maybeBackupOnClose, createBackup } from './services/backupService'
 import { startBackupScheduler } from './services/backupScheduler'
 import { registerDefaultVoiceHandlers } from './services/voiceCommandService'
+import { warmupWindowsSpeech } from './services/windowsSpeech'
 import { ensureTicketRange } from './services/ticketService'
 import { appendMediaCommandLineSwitches, grantMicrophoneAccess } from './mediaPermissions'
 import { errorToLog, logError, logInfo } from './logging/appLogger'
@@ -63,6 +64,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
   createMainWindow()
   logInfo('app.window.created')
+  warmupWindowsSpeech()
   void startBackupScheduler(async () => {
     await createBackup({ trigger: 'INTERVAL', notes: 'Backup automático por intervalo' })
   })

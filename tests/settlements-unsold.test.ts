@@ -17,15 +17,15 @@ describe('settlement rules', () => {
     expect(canSettle('PERDIDA', false)).toBe(false)
   })
 
-  it('restricts settlements to ADMIN', () => {
+  it('allows ADMIN and USER (operador) to settle tickets', () => {
     expect(hasPermission('ADMIN', 'settlements:manage')).toBe(true)
-    expect(hasPermission('USER', 'settlements:manage')).toBe(false)
+    expect(hasPermission('USER', 'settlements:manage')).toBe(true)
   })
 
   it('keeps isSettled independent of payment status conceptually', () => {
     // CANCELADA + not settled = pending settlement
     expect(canSettle('CANCELADA', false)).toBe(true)
-    // After settlement, status remains CANCELADA but canSettle is false
+    // After settlement, status remains s but canSettle is false
     expect(canSettle('CANCELADA', true)).toBe(false)
   })
 })

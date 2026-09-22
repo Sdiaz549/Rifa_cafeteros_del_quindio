@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import { useAuth } from '../features/auth/AuthContext'
 import { COMPANY_NAME } from '@shared/constants'
 import { parseVoiceCommand } from '@shared/voice/parseCommand'
+import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { formatDateCo } from '@shared/dates'
 import { cn } from '../lib/cn'
 import { isSpeechRecognitionAvailable, startSpeechRecognition } from '../lib/speechRecognition'
@@ -123,15 +124,36 @@ export function AppShell() {
     e.preventDefault()
     const q = query.trim()
     if (!q) return
+    const ticketNumber = parseTicketNumber(q)
+    if (ticketNumber != null) {
+      setQuery(formatTicketNumber(ticketNumber))
+      navigate(`/boletas/${ticketNumber}`)
+      return
+    }
     navigate(`/boletas?q=${encodeURIComponent(q)}`)
   }
 
   const runVoice = useCallback(
     async (raw: string) => {
-      const cmd = parseVoiceCommand(raw)
+      const heard = raw.trim()
+      if (heard) setQuery(heard)
+
+      const cmd = parseVoiceCommand(heard)
+      if (cmd.action === 'CONFIRMAR') {
+        toast.message('Confirme el abono con el botón de la barra amarilla.')
+        return
+      }
+      if (cmd.action === 'DESCONOCIDO' || (cmd.action === 'BUSCAR_BOLETA' && cmd.ticketNumber == null)) {
+        toast.error(
+          `No entendí el número. Escuché: “${heard}”. Diga dígito por dígito, por ejemplo: siete cero tres cero.`
+        )
+        return
+      }
       if (cmd.action === 'BUSCAR_BOLETA' && cmd.ticketNumber != null) {
+        const padded = String(cmd.ticketNumber).padStart(4, '0')
+        setQuery(padded)
         navigate(`/boletas/${cmd.ticketNumber}`)
-        toast.success(`Boleta ${String(cmd.ticketNumber).padStart(4, '0')}`)
+        toast.success(`Escuché “${heard}” → boleta ${padded}`)
         return
       }
       if (cmd.action === 'MOSTRAR_SIN_VENDER') {
@@ -139,12 +161,11 @@ export function AppShell() {
         return
       }
       if (cmd.action === 'MOSTRAR_EN_ABONOS') {
-        navigate('/boletas?q=&status=EN_ABONOS')
-        navigate('/boletas')
+        navigate('/boletas?status=EN_ABONOS')
         return
       }
       if (cmd.action === 'MOSTRAR_PERDIDAS') {
-        navigate('/boletas')
+        navigate('/boletas?status=PERDIDA')
         return
       }
       if (cmd.action === 'MOSTRAR_LIQUIDADAS') {
@@ -152,12 +173,39 @@ export function AppShell() {
         return
       }
       if (cmd.action === 'BUSCAR_VENDEDOR') {
-        navigate(`/vendedores`)
+        navigate(cmd.sellerName ? `/vendedores?q=${encodeURIComponent(cmd.sellerName)}` : '/vendedores')
+        return
+      }
+      if (cmd.action === 'IR_ABONOS') {
+        if (cmd.ticketNumber != null) setQuery(String(cmd.ticketNumber).padStart(4, '0'))
+        navigate(cmd.ticketNumber != null ? `/abonos?boleta=${cmd.ticketNumber}` : '/abonos')
+        toast.message(
+          cmd.ticketNumber != null
+            ? `Abono: boleta ${String(cmd.ticketNumber).padStart(4, '0')}. Diga el valor si aún no lo dijo.`
+            : 'Abonos. Diga por ejemplo: abono de 20000 a la boleta 12'
+        )
+        return
+      }
+      if (cmd.action === 'IR_BOLETAS') {
+        navigate('/boletas')
+        return
+      }
+      if (cmd.action === 'IR_COMPRADORES') {
+        navigate('/compradores')
+        return
+      }
+      if (cmd.action === 'IR_DASHBOARD') {
+        navigate('/')
+        return
+      }
+      if (cmd.action === 'IR_REPORTES') {
+        navigate('/reportes')
         return
       }
       if (cmd.action === 'REGISTRAR_ABONO') {
         if (cmd.ticketNumber == null || !cmd.amount) {
-          toast.error('Diga: abono de 20000 a la boleta 12 por Nequi')
+          navigate(cmd.ticketNumber != null ? `/abonos?boleta=${cmd.ticketNumber}` : '/abonos')
+          toast.message('Diga: abono de 20000 a la boleta 12 por Nequi')
           return
         }
         const match = cmd.paymentMethodName
@@ -173,19 +221,22 @@ export function AppShell() {
           paymentMethodId: match.id,
           paymentMethodName: match.name
         })
+        setQuery(String(cmd.ticketNumber).padStart(4, '0'))
         return
       }
-      toast.message(`No entendí: “${raw}”`)
+      if (heard) {
+        navigate(`/boletas?q=${encodeURIComponent(heard)}`)
+        toast.message(`Buscando: “${heard}”`)
+        return
+      }
+      toast.message('No se escuchó un comando. Intente de nuevo.')
     },
     [methods, navigate]
   )
 
   async function toggleVoice() {
     if (listening) {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
-      setListening(false)
-      setVoiceHint('')
+      toast.message('Siga hablando. El micrófono se detiene solo al terminar.')
       return
     }
     if (!isSpeechRecognitionAvailable()) {
@@ -196,8 +247,8 @@ export function AppShell() {
       const handle = await startSpeechRecognition({
         onListening: () => {
           setListening(true)
-          setVoiceHint('Escuchando… hable ahora')
-          toast.message('Micrófono activo. Hable ahora.')
+          setVoiceHint('Espere el pitido. Diga el número dígito por dígito: siete cero tres cero')
+          toast.message('Cuando suene el pitido, diga los dígitos. Ejemplo: siete cero tres cero.')
         },
         onTranscript: (text, isFinal) => {
           setVoiceHint(text)
@@ -341,8 +392,8 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-4 border-b border-dash-line bg-white px-5 py-3">
-          <form onSubmit={onSearch} className="flex min-w-0 flex-1 items-center">
-            <div className="relative w-full max-w-3xl">
+          <form onSubmit={onSearch} className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="relative min-w-0 w-full max-w-3xl">
               <Search
                 className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-dash-muted"
                 size={18}
@@ -355,7 +406,7 @@ export function AppShell() {
               />
               <button
                 type="button"
-                title={"Haz clic y habla: buscar boleta 8587"}
+                title="Haga clic, hable y espere. Ejemplo: boleta veinticinco"
                 onClick={() => void toggleVoice()}
                 className={cn(
                   'absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full p-2 transition',
@@ -365,6 +416,13 @@ export function AppShell() {
                 <Mic size={18} />
               </button>
             </div>
+            <button
+              type="submit"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-forest px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:brightness-110"
+            >
+              <Search size={16} />
+              Buscar
+            </button>
           </form>
 
           <div className="hidden items-center gap-2 text-xs text-dash-muted xl:flex">
@@ -387,7 +445,7 @@ export function AppShell() {
 
         {listening && (
           <div className="border-b border-amber-300 bg-[#fff9c4] px-5 py-2 text-sm font-medium text-forest">
-            {voiceHint || 'Escuchando… hable ahora'}
+            {voiceHint || 'Escuchando… diga el número de boleta'}
           </div>
         )}
 

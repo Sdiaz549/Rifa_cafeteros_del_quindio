@@ -13,7 +13,7 @@ const DEFAULT_PAYMENT_METHODS = ['Efectivo', 'Nequi', 'Daviplata', 'Bancolombia'
 
 /**
  * Datos mínimos para que el sistema arranque.
- * No borra ni pisa datos del cliente: solo inserta lo que falte.
+ * No pisa catálogos del cliente: solo inserta lo que falte.
  */
 export async function ensureRequiredData(): Promise<void> {
   const prisma = getPrisma()
@@ -72,4 +72,45 @@ export async function ensureRequiredData(): Promise<void> {
     })
     logInfo('db.bootstrap.adminCreated', { username: 'admin' })
   }
+
+  await clearSeedTicketAssignments()
+}
+
+/** El seed inicial marcó boletas 0–100 como asignadas; solo se quitan esas, no las que sí asignaron después. */
+async function clearSeedTicketAssignments(): Promise<void> {
+  const prisma = getPrisma()
+  const flagKey = 'clearedDemoTicketAssignments'
+  const flag = await prisma.setting.findUnique({ where: { key: flagKey } })
+  if (flag?.value === 'true') return
+
+  const endedAt = new Date()
+  const seedAssignments = await prisma.ticketAssignment.findMany({
+    where: {
+      endedAt: null,
+      reason: 'ASIGNACION_INICIAL',
+      ticket: { number: { lte: 100 } }
+    },
+    select: { id: true, ticketId: true }
+  })
+
+  if (seedAssignments.length > 0) {
+    const ticketIds = [...new Set(seedAssignments.map((a) => a.ticketId))]
+    await prisma.$transaction([
+      prisma.ticketAssignment.updateMany({
+        where: { id: { in: seedAssignments.map((a) => a.id) } },
+        data: { endedAt }
+      }),
+      prisma.ticket.updateMany({
+        where: { id: { in: ticketIds } },
+        data: { sellerId: null }
+      })
+    ])
+    logInfo('db.bootstrap.clearedSeedAssignments', { count: seedAssignments.length })
+  }
+
+  await prisma.setting.upsert({
+    where: { key: flagKey },
+    update: { value: 'true' },
+    create: { key: flagKey, value: 'true' }
+  })
 }

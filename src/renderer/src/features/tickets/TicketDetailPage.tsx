@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
@@ -8,6 +8,7 @@ import type { PaymentSummary, TicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
 import { cn } from '../../lib/cn'
 import { AssignSellerForm } from './AssignSellerForm'
+import { SellTicketForm } from '../sales/SellTicketForm'
 
 const statusTone: Record<string, string> = {
   SIN_VENDER: 'ticket-sin-vender',
@@ -24,6 +25,10 @@ export function TicketDetailPage() {
   const [payments, setPayments] = useState<PaymentSummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [markingLost, setMarkingLost] = useState(false)
+  const [showSale, setShowSale] = useState(false)
+  const [saleSellerId, setSaleSellerId] = useState<string | null>(null)
+  const [buyerName, setBuyerName] = useState('')
+  const [savingBuyer, setSavingBuyer] = useState(false)
 
   async function load(n: number) {
     const [ticketRes, paymentsRes] = await Promise.all([
@@ -37,6 +42,7 @@ export function TicketDetailPage() {
       return
     }
     setTicket(ticketRes.data)
+    setBuyerName(ticketRes.data.buyerName ?? '')
     setError(null)
     if (paymentsRes.ok) setPayments(paymentsRes.data)
   }
@@ -48,6 +54,8 @@ export function TicketDetailPage() {
       return
     }
     void load(n)
+    setShowSale(false)
+    setSaleSellerId(null)
   }, [number])
 
   useEffect(() => {
@@ -69,6 +77,28 @@ export function TicketDetailPage() {
     }
     toast.success('Boleta marcada como perdida')
     setTicket({ ...res.data, statusLabel: 'Perdida' })
+  }
+
+  async function onSaveBuyer(e: FormEvent) {
+    e.preventDefault()
+    if (!ticket) return
+    const fullName = buyerName.trim()
+    if (fullName.length < 2) {
+      toast.error('Escriba el nombre del comprador')
+      return
+    }
+    setSavingBuyer(true)
+    const res = await window.api.tickets.setBuyer({
+      ticketNumber: ticket.number,
+      fullName
+    })
+    setSavingBuyer(false)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success('Comprador guardado')
+    await load(ticket.number)
   }
 
   if (error) {
@@ -100,11 +130,11 @@ export function TicketDetailPage() {
           </div>
           <span
             className={cn(
-              'rounded-full border px-3 py-1 text-xs font-semibold text-ink',
-              statusTone[ticket.status]
+              'rounded-full border px-3 py-1 text-xs font-semibold',
+              ticket.isSettled ? 'ticket-liquidada' : cn('text-ink', statusTone[ticket.status])
             )}
           >
-            {ticket.statusLabel ?? ticket.status}
+            {ticket.isSettled ? 'Liquidada' : (ticket.statusLabel ?? ticket.status)}
           </span>
         </div>
 
@@ -151,7 +181,25 @@ export function TicketDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-accent-red">
                   Comprador
                 </p>
-                <p className="mt-1 font-medium">{ticket.buyerName ?? '—'}</p>
+                {can('tickets:sell') ? (
+                  <form onSubmit={(e) => void onSaveBuyer(e)} className="mt-2 flex flex-col gap-2">
+                    <input
+                      className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                      placeholder="Nombre del comprador"
+                      value={buyerName}
+                      onChange={(e) => setBuyerName(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingBuyer}
+                      className="self-start rounded-lg bg-brand-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                    >
+                      {savingBuyer ? 'Guardando…' : ticket.buyerName ? 'Actualizar nombre' : 'Guardar nombre'}
+                    </button>
+                  </form>
+                ) : (
+                  <p className="mt-1 font-medium">{ticket.buyerName ?? '—'}</p>
+                )}
               </div>
             </div>
           </section>
@@ -197,12 +245,13 @@ export function TicketDetailPage() {
               <th className="px-4 py-3 font-medium">Método</th>
               <th className="px-4 py-3 font-medium">Usuario</th>
               <th className="px-4 py-3 font-medium">Origen</th>
+              <th className="px-4 py-3 font-medium">Observación</th>
             </tr>
           </thead>
           <tbody>
             {payments.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-ink-muted">
+                <td colSpan={8} className="px-4 py-6 text-ink-muted">
                   Sin movimientos registrados.
                 </td>
               </tr>
@@ -216,6 +265,7 @@ export function TicketDetailPage() {
                 <td className="px-4 py-2.5">{p.paymentMethodName}</td>
                 <td className="px-4 py-2.5">{p.userName}</td>
                 <td className="px-4 py-2.5">{p.origin}</td>
+                <td className="px-4 py-2.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -236,12 +286,31 @@ export function TicketDetailPage() {
 
       {ticket.status === 'SIN_VENDER' && can('tickets:sell') && (
         <div className="app-card p-6">
-          <AssignSellerForm
-            ticketNumber={ticket.number}
-            currentSellerName={ticket.sellerName}
-            defaultSellerId={ticket.sellerId}
-            onAssigned={() => void load(ticket.number)}
-          />
+          {showSale ? (
+            <SellTicketForm
+              ticketNumber={ticket.number}
+              defaultSellerId={saleSellerId ?? ticket.sellerId}
+              intent="abono"
+              embedded
+              onSold={() => {
+                setShowSale(false)
+                void load(ticket.number)
+              }}
+              onCancel={() => setShowSale(false)}
+            />
+          ) : (
+            <AssignSellerForm
+              ticketNumber={ticket.number}
+              currentSellerName={ticket.sellerName}
+              defaultSellerId={ticket.sellerId}
+              onAssigned={() => void load(ticket.number)}
+              onWantAbono={(sellerId) => {
+                setSaleSellerId(sellerId)
+                setShowSale(true)
+                void load(ticket.number)
+              }}
+            />
+          )}
         </div>
       )}
 

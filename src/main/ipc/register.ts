@@ -6,6 +6,7 @@ import * as saleService from '../services/saleService'
 import * as paymentService from '../services/paymentService'
 import * as buyerService from '../services/buyerService'
 import * as sellerService from '../services/sellerService'
+import { exportSellerTicketsWord, exportSellerPaymentsWord } from '../services/sellerWordExport'
 import * as paymentMethodService from '../services/paymentMethodService'
 import * as settlementService from '../services/settlementService'
 import * as unsoldService from '../services/unsoldService'
@@ -18,6 +19,7 @@ import * as auditService from '../audit/auditService'
 import * as userService from '../services/userService'
 import * as settingsService from '../services/settingsService'
 import { voiceCommandService } from '../services/voiceCommandService'
+import { cancelWindowsListen, listenWindowsSpeech, warmupWindowsSpeech } from '../services/windowsSpeech'
 import { getAppRuntimeInfo } from '../app/runtimeInfo'
 import { requireSession } from '../auth/session'
 import { IPC_CHANNELS, isAllowedIpcChannel, type IpcChannel } from '../../shared/ipc/channels'
@@ -41,6 +43,8 @@ const handlers: Record<IpcChannel, IpcHandler> = {
     ticketService.assignTicketToSeller(
       payload as Parameters<typeof ticketService.assignTicketToSeller>[0]
     ),
+  [IPC_CHANNELS.TICKETS_SET_BUYER]: async (_e, payload) =>
+    ticketService.setTicketBuyer(payload as Parameters<typeof ticketService.setTicketBuyer>[0]),
 
   [IPC_CHANNELS.SALES_CREATE]: async (_e, payload) =>
     saleService.createSale(payload as Parameters<typeof saleService.createSale>[0]),
@@ -60,6 +64,10 @@ const handlers: Record<IpcChannel, IpcHandler> = {
   [IPC_CHANNELS.SELLERS_UPSERT]: async (_e, payload) =>
     sellerService.upsertSeller(payload as Parameters<typeof sellerService.upsertSeller>[0]),
   [IPC_CHANNELS.SELLERS_GET_BY_ID]: async (_e, id) => sellerService.getSellerById(id as string),
+  [IPC_CHANNELS.SELLERS_EXPORT_TICKETS_WORD]: async (_e, id) =>
+    exportSellerTicketsWord(id as string),
+  [IPC_CHANNELS.SELLERS_EXPORT_PAYMENTS_WORD]: async (_e, id) =>
+    exportSellerPaymentsWord(id as string),
 
   [IPC_CHANNELS.PAYMENT_METHODS_LIST_ACTIVE]: async () =>
     paymentMethodService.listActivePaymentMethods(),
@@ -162,6 +170,25 @@ const handlers: Record<IpcChannel, IpcHandler> = {
         ok: true as const,
         data: await voiceCommandService.execute(String(raw ?? ''), { session })
       }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : 'Error de voz' }
+    }
+  },
+
+  [IPC_CHANNELS.VOICE_LISTEN]: async () => {
+    try {
+      requireSession()
+      return await listenWindowsSpeech()
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : 'Error de voz' }
+    }
+  },
+
+  [IPC_CHANNELS.VOICE_CANCEL]: async () => {
+    try {
+      requireSession()
+      cancelWindowsListen()
+      return { ok: true as const, data: { cancelled: true as const } }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : 'Error de voz' }
     }

@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
-import type { ApiResult, SellerSummary } from '../../shared/types'
+import type { ApiResult, SellerSummary, SellerTicketSummary, TicketStatus } from '../../shared/types'
 
 const sellerSchema = z.object({
   fullName: z.string().min(2),
@@ -90,23 +90,33 @@ function mapSeller(s: {
     isSettled: boolean
     totalPaid: number
     balanceDue: number
+    buyer?: { fullName: string } | null
   }[]
 } & Partial<SellerStat>): SellerSummary {
   const tickets = s.tickets
-  const fromTickets = tickets
+  const ticketSummaries: SellerTicketSummary[] | undefined = tickets
+    ?.map((t) => ({
+      number: Number(t.number),
+      status: t.status as TicketStatus,
+      isSettled: Boolean(t.isSettled),
+      totalPaid: Number(t.totalPaid) || 0,
+      balanceDue: Number(t.balanceDue) || 0,
+      buyerName: t.buyer?.fullName ?? null
+    }))
+    .filter((t) => Number.isFinite(t.number) && t.number >= 0)
+    .sort((a, b) => a.number - b.number)
+  const fromTickets = ticketSummaries
     ? {
-        ticketsCount: tickets.length,
-        availableCount: tickets.filter((t) => t.status === 'SIN_VENDER').length,
-        partialCount: tickets.filter((t) => t.status === 'EN_ABONOS').length,
-        paidCount: tickets.filter((t) => t.status === 'CANCELADA').length,
-        lostCount: tickets.filter((t) => t.status === 'PERDIDA').length,
-        settledCount: tickets.filter((t) => t.isSettled).length,
-        collectedTotal: tickets.reduce((sum, t) => sum + t.totalPaid, 0),
-        pendingTotal: tickets.reduce((sum, t) => sum + t.balanceDue, 0),
-        ticketNumbers: tickets
-          .map((t) => t.number)
-          .filter((n): n is number => typeof n === 'number')
-          .sort((a, b) => a - b)
+        ticketsCount: ticketSummaries.length,
+        availableCount: ticketSummaries.filter((t) => t.status === 'SIN_VENDER').length,
+        partialCount: ticketSummaries.filter((t) => t.status === 'EN_ABONOS').length,
+        paidCount: ticketSummaries.filter((t) => t.status === 'CANCELADA').length,
+        lostCount: ticketSummaries.filter((t) => t.status === 'PERDIDA').length,
+        settledCount: ticketSummaries.filter((t) => t.isSettled).length,
+        collectedTotal: ticketSummaries.reduce((sum, t) => sum + t.totalPaid, 0),
+        pendingTotal: ticketSummaries.reduce((sum, t) => sum + t.balanceDue, 0),
+        ticketNumbers: ticketSummaries.map((t) => t.number),
+        tickets: ticketSummaries
       }
     : {
         ticketsCount: s.ticketsCount ?? 0,
@@ -190,7 +200,15 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
           },
           include: {
             tickets: {
-              select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
+              select: {
+                number: true,
+                status: true,
+                isSettled: true,
+                totalPaid: true,
+                balanceDue: true,
+                buyer: { select: { fullName: true } }
+              },
+              orderBy: { number: 'asc' }
             }
           }
         })
@@ -205,7 +223,15 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
           },
           include: {
             tickets: {
-              select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
+              select: {
+                number: true,
+                status: true,
+                isSettled: true,
+                totalPaid: true,
+                balanceDue: true,
+                buyer: { select: { fullName: true } }
+              },
+              orderBy: { number: 'asc' }
             }
           }
         })
@@ -233,18 +259,23 @@ export async function getSellerById(id: string): Promise<ApiResult<SellerSummary
     const session = requireSession()
     assertPermission(session.role, 'sellers:manage')
     const prisma = getPrisma()
-    const seller = await prisma.seller.findUnique({
-      where: { id },
-      include: {
-        tickets: {
-          select: { number: true, status: true, isSettled: true, totalPaid: true, balanceDue: true }
-        }
-      }
-    })
+    const seller = await prisma.seller.findUnique({ where: { id } })
     if (!seller) {
       return { ok: false, error: 'Vendedor no encontrado.' }
     }
-    return { ok: true, data: mapSeller(seller) }
+    const tickets = await prisma.ticket.findMany({
+      where: { sellerId: id },
+      select: {
+        number: true,
+        status: true,
+        isSettled: true,
+        totalPaid: true,
+        balanceDue: true,
+        buyer: { select: { fullName: true } }
+      },
+      orderBy: { number: 'asc' }
+    })
+    return { ok: true, data: mapSeller({ ...seller, tickets }) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al consultar vendedor' }
   }

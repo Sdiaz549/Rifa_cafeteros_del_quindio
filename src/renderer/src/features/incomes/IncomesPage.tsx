@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
 import { formatDateTimeCo } from '@shared/dates'
+import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { IncomeSummary } from '@shared/types'
 
 export function IncomesPage() {
@@ -124,6 +125,7 @@ export function IncomesPage() {
                 <th className="px-4 py-3">Método</th>
                 <th className="px-4 py-3">Vendedor</th>
                 <th className="px-4 py-3">Comprador</th>
+                <th className="px-4 py-3">Observación</th>
               </tr>
             </thead>
             <tbody>
@@ -132,7 +134,7 @@ export function IncomesPage() {
                   <td className="px-4 py-3">{formatDateTimeCo(i.paidAt)}</td>
                   <td className="px-4 py-3 font-semibold">
                     <Link to={`/boletas/${i.ticketNumber}`} className="text-brand-800 hover:underline">
-                      #{i.ticketNumber}
+                      {formatTicketNumber(i.ticketNumber)}
                     </Link>
                   </td>
                   <td className="px-4 py-3">
@@ -142,6 +144,7 @@ export function IncomesPage() {
                   <td className="px-4 py-3">{i.paymentMethodName}</td>
                   <td className="px-4 py-3">{i.sellerName ?? '—'}</td>
                   <td className="px-4 py-3">{i.buyerName ?? '—'}</td>
+                  <td className="px-4 py-3 text-ink-muted">{i.notes?.trim() ? i.notes : '—'}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,13 +1,22 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { formatCop, parseCopInput } from '@shared/money'
+import { DEFAULT_TICKET_PRICE } from '@shared/constants'
+import { formatCop, parseCopInput, formatCopInputValue } from '@shared/money'
 import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
-import type { PaymentMethodSummary, TicketSummary } from '@shared/types'
+import { inputDateToIso, todayInputDate } from '@shared/dates'
+import type { PaymentMethodSummary, PaymentSummary, SellerSummary, TicketSummary } from '@shared/types'
 
 function paddedTicketInput(raw: string): string {
   const n = parseTicketNumber(raw)
   return n == null ? raw.replace(/\D/g, '').slice(0, 4) : formatTicketNumber(n)
+}
+
+const statusLabel: Record<string, string> = {
+  SIN_VENDER: 'Sin vender',
+  EN_ABONOS: 'En abonos',
+  CANCELADA: 'Cancelada',
+  PERDIDA: 'Perdida'
 }
 
 export function PaymentsPage() {
@@ -15,20 +24,34 @@ export function PaymentsPage() {
   const navigate = useNavigate()
   const [ticketNumber, setTicketNumber] = useState(() => paddedTicketInput(params.get('boleta') ?? ''))
   const [ticket, setTicket] = useState<TicketSummary | null>(null)
+  const [history, setHistory] = useState<PaymentSummary[]>([])
   const [methods, setMethods] = useState<PaymentMethodSummary[]>([])
+  const [sellers, setSellers] = useState<SellerSummary[]>([])
+  const [sellerId, setSellerId] = useState('')
+  const [buyer, setBuyer] = useState({
+    fullName: '',
+    documentId: '',
+    phone: '',
+    address: ''
+  })
   const [amount, setAmount] = useState('')
   const [paymentMethodId, setPaymentMethodId] = useState('')
+  const [paidAt, setPaidAt] = useState(todayInputDate)
   const [notes, setNotes] = useState('')
   const [loadingTicket, setLoadingTicket] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     void (async () => {
-      const res = await window.api.paymentMethods.listActive()
-      if (res.ok) {
-        setMethods(res.data)
-        if (res.data[0]) setPaymentMethodId(res.data[0].id)
+      const [methodsRes, sellersRes] = await Promise.all([
+        window.api.paymentMethods.listActive(),
+        window.api.sellers.list({ onlyActive: true, take: 200 })
+      ])
+      if (methodsRes.ok) {
+        setMethods(methodsRes.data)
+        if (methodsRes.data[0]) setPaymentMethodId(methodsRes.data[0].id)
       }
+      if (sellersRes.ok) setSellers(sellersRes.data)
     })()
   }, [])
 
@@ -38,22 +61,37 @@ export function PaymentsPage() {
     }
   }, [params])
 
+  function resetBuyer() {
+    setBuyer({ fullName: '', documentId: '', phone: '', address: '' })
+  }
+
   async function loadTicket(raw: string) {
-    const number = Number(raw)
-    if (!Number.isInteger(number) || number < 0) {
+    const number = parseTicketNumber(raw)
+    if (number == null) {
       toast.error('Número de boleta inválido')
       return
     }
     setLoadingTicket(true)
-    const res = await window.api.tickets.getByNumber(number)
+    const [ticketRes, paymentsRes] = await Promise.all([
+      window.api.tickets.getByNumber(number),
+      window.api.payments.listByTicket(number)
+    ])
     setLoadingTicket(false)
-    if (!res.ok) {
+    if (!ticketRes.ok) {
       setTicket(null)
-      toast.error(res.error)
+      setHistory([])
+      toast.error(ticketRes.error)
       return
     }
-    setTicket(res.data)
-    setTicketNumber(formatTicketNumber(res.data.number))
+    const next = ticketRes.data
+    setTicket(next)
+    setTicketNumber(formatTicketNumber(next.number))
+    setHistory(paymentsRes.ok ? paymentsRes.data : [])
+    setSellerId(next.sellerId ?? '')
+    resetBuyer()
+    setAmount('')
+    setPaidAt(todayInputDate())
+    setNotes('')
   }
 
   async function onSearch(e: FormEvent) {
@@ -69,12 +107,18 @@ export function PaymentsPage() {
       toast.error('Busque primero la boleta')
       return
     }
+    if (ticket.status === 'CANCELADA' || ticket.status === 'PERDIDA') {
+      toast.error('Esta boleta no admite abonos en su estado actual.')
+      return
+    }
+
+    const pending = ticket.status === 'SIN_VENDER' ? DEFAULT_TICKET_PRICE : ticket.balanceDue
     const value = parseCopInput(amount)
     if (value <= 0) {
       toast.error('El valor del abono debe ser mayor que cero')
       return
     }
-    if (value > ticket.balanceDue) {
+    if (value > pending) {
       toast.error('El valor del abono supera el saldo pendiente.')
       return
     }
@@ -83,37 +127,83 @@ export function PaymentsPage() {
       return
     }
 
+    const needsSale = ticket.status === 'SIN_VENDER'
+    const chosenSellerId = ticket.sellerId || sellerId
+    if (needsSale && !chosenSellerId) {
+      toast.error('Seleccione un vendedor')
+      return
+    }
+
+    if (needsSale && !buyer.fullName.trim()) {
+      toast.error('Escriba el nombre del comprador')
+      return
+    }
+
     setSubmitting(true)
+    const paidAtIso = inputDateToIso(paidAt)
+    if (needsSale) {
+      const res = await window.api.sales.create({
+        ticketNumber: ticket.number,
+        sellerId: chosenSellerId,
+        buyer: {
+          fullName: buyer.fullName.trim(),
+          documentId: buyer.documentId.trim() || undefined,
+          phone: buyer.phone.trim() || undefined,
+          address: buyer.address.trim() || undefined
+        },
+        amount: DEFAULT_TICKET_PRICE,
+        initialPayment: value,
+        paymentMethodId,
+        soldAt: paidAtIso,
+        notes: notes.trim() || undefined
+      })
+      setSubmitting(false)
+      if (!res.ok) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Abono registrado correctamente.')
+      await loadTicket(String(ticket.number))
+      if (res.data.balanceDue === 0) navigate(`/boletas/${ticket.number}`)
+      return
+    }
+
     const res = await window.api.payments.create({
       ticketNumber: ticket.number,
       amount: value,
       paymentMethodId,
-      notes: notes || undefined,
+      paidAt: paidAtIso,
+      notes: notes.trim() || undefined,
       origin: 'MANUAL'
     })
     setSubmitting(false)
-
     if (!res.ok) {
       toast.error(res.error)
       return
     }
-
     toast.success('Abono registrado correctamente.')
     setAmount('')
+    setPaidAt(todayInputDate())
     setNotes('')
     setTicket(res.data.ticket)
-    if (res.data.ticket.balanceDue === 0) {
-      navigate(`/boletas/${ticket.number}`)
-    }
+    if (res.data.payment) setHistory((prev) => [...prev, res.data.payment])
+    if (res.data.ticket.balanceDue === 0) navigate(`/boletas/${ticket.number}`)
   }
+
+  const canPay =
+    ticket != null && (ticket.status === 'SIN_VENDER' || ticket.status === 'EN_ABONOS')
+  const pending = ticket
+    ? ticket.status === 'SIN_VENDER'
+      ? DEFAULT_TICKET_PRICE
+      : ticket.balanceDue
+    : 0
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold text-brand-900">Abonos</h1>
         <p className="text-sm text-ink-muted">
-          Busque la boleta, verifique el saldo y registre el abono. No se permiten valores superiores
-          al pendiente.
+          Busque la boleta y registre el abono aquí mismo. Los datos del comprador se guardan solos.
         </p>
       </div>
 
@@ -141,20 +231,20 @@ export function PaymentsPage() {
             <div>
               <p className="text-xs text-ink-muted">Boleta</p>
               <p className="text-2xl font-semibold text-brand-900">
-                {String(ticket.number).padStart(4, '0')}
+                {formatTicketNumber(ticket.number)}
               </p>
             </div>
             <div>
               <p className="text-xs text-ink-muted">Estado</p>
-              <p className="font-medium">{ticket.status}</p>
+              <p className="font-medium">{statusLabel[ticket.status] ?? ticket.status}</p>
             </div>
             <div>
               <p className="text-xs text-ink-muted">Comprador</p>
-              <p className="font-medium">{ticket.buyerName ?? '—'}</p>
+              <p className="font-medium">{ticket.buyerName ?? 'Sin registrar'}</p>
             </div>
             <div>
               <p className="text-xs text-ink-muted">Vendedor</p>
-              <p className="font-medium">{ticket.sellerName ?? '—'}</p>
+              <p className="font-medium">{ticket.sellerName ?? 'Sin asignar'}</p>
             </div>
             <div>
               <p className="text-xs text-ink-muted">Total abonado</p>
@@ -162,20 +252,79 @@ export function PaymentsPage() {
             </div>
             <div>
               <p className="text-xs text-ink-muted">Saldo pendiente</p>
-              <p className="text-xl font-semibold text-accent-red">{formatCop(ticket.balanceDue)}</p>
+              <p className="text-xl font-semibold text-accent-red">{formatCop(pending)}</p>
             </div>
           </div>
 
-          {ticket.balanceDue > 0 && ticket.status === 'EN_ABONOS' ? (
+          {canPay ? (
             <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-line bg-white p-5">
+              {!ticket.sellerId && (
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium">Vendedor</span>
+                  <select
+                    className="w-full rounded-xl border border-line px-3 py-2.5"
+                    value={sellerId}
+                    onChange={(e) => setSellerId(e.target.value)}
+                  >
+                    <option value="">Seleccione…</option>
+                    {sellers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {ticket.status === 'SIN_VENDER' ? (
+                <div className="rounded-2xl border border-line bg-surface p-4">
+                  <p className="mb-3 text-sm font-semibold text-brand-900">Datos del comprador</p>
+                  <p className="mb-3 text-xs text-ink-muted">
+                    Si el comprador ya existe (por cédula o nombre), esta boleta queda en ese mismo
+                    comprador.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      className="rounded-xl border border-line px-3 py-2.5 text-sm"
+                      placeholder="Nombre completo"
+                      value={buyer.fullName}
+                      onChange={(e) => setBuyer((s) => ({ ...s, fullName: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2.5 text-sm"
+                      placeholder="Cédula (opcional)"
+                      value={buyer.documentId}
+                      onChange={(e) => setBuyer((s) => ({ ...s, documentId: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2.5 text-sm"
+                      placeholder="Teléfono (opcional)"
+                      value={buyer.phone}
+                      onChange={(e) => setBuyer((s) => ({ ...s, phone: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2.5 text-sm"
+                      placeholder="Dirección (opcional)"
+                      value={buyer.address}
+                      onChange={(e) => setBuyer((s) => ({ ...s, address: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              ) : ticket.buyerName ? (
+                <p className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-800">
+                  Comprador: <strong>{ticket.buyerName}</strong>. El abono queda en esta boleta.
+                </p>
+              ) : null}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm">
                   <span className="mb-1.5 block font-medium">Valor del abono</span>
                   <input
                     className="w-full rounded-xl border border-line px-3 py-2.5"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
+                    onChange={(e) => setAmount(formatCopInputValue(e.target.value))}
+                    placeholder="20,000"
+                    inputMode="numeric"
                   />
                 </label>
                 <label className="block text-sm">
@@ -184,7 +333,6 @@ export function PaymentsPage() {
                     className="w-full rounded-xl border border-line px-3 py-2.5"
                     value={paymentMethodId}
                     onChange={(e) => setPaymentMethodId(e.target.value)}
-                    required
                   >
                     {methods.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -192,6 +340,16 @@ export function PaymentsPage() {
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block font-medium">Fecha del abono</span>
+                  <input
+                    type="date"
+                    className="w-full rounded-xl border border-line px-3 py-2.5"
+                    value={paidAt}
+                    onChange={(e) => setPaidAt(e.target.value)}
+                    required
+                  />
                 </label>
               </div>
               <label className="block text-sm">
@@ -222,6 +380,34 @@ export function PaymentsPage() {
             <p className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-800">
               Esta boleta no admite abonos en su estado actual.
             </p>
+          )}
+
+          {history.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-line bg-white">
+              <p className="border-b border-line px-5 py-3 text-sm font-semibold text-brand-900">
+                Abonos de esta boleta
+              </p>
+              <table className="w-full text-left text-sm">
+                <thead className="bg-brand-50 text-ink-muted">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">#</th>
+                    <th className="px-4 py-2 font-medium">Valor</th>
+                    <th className="px-4 py-2 font-medium">Método</th>
+                    <th className="px-4 py-2 font-medium">Observación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((p) => (
+                    <tr key={p.id} className="border-t border-line">
+                      <td className="px-4 py-2.5">{p.sequence}</td>
+                      <td className="px-4 py-2.5 font-medium">{formatCop(p.amount)}</td>
+                      <td className="px-4 py-2.5">{p.paymentMethodName}</td>
+                      <td className="px-4 py-2.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

@@ -32,6 +32,7 @@
   --color-ticket-partial: #fff9c4;
   --color-ticket-paid: #8cff4a;
   --color-ticket-lost: #e53935;
+  --color-ticket-settled: #ff40c8;
 
   --color-surface: #efe6d6;
   --color-surface-elevated: #fffaf2;
@@ -310,6 +311,12 @@
   .ticket-perdida {
     background: var(--color-ticket-lost);
     border-color: #b71c1c;
+    color: white;
+  }
+
+  .ticket-liquidada {
+    background: var(--color-ticket-settled);
+    border-color: #c40090;
     color: white;
   }
 

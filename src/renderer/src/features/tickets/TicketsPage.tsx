@@ -3,12 +3,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Grid2X2, List, Ticket, X } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
-import { boardStatsFromPacked, boardIndexForQuery, packTicketCell, unpackTicketCell } from '@shared/tickets/board'
+import { boardStatsFromPacked, boardIndexForQuery, packTicketCell, packedCellMatchesFilter, unpackTicketCell, type TicketBoardFilter } from '@shared/tickets/board'
 import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { cn } from '../../lib/cn'
 import { PageHeader } from '../../components/PageHeader'
 import { useAuth } from '../auth/AuthContext'
 import { AssignSellerForm } from './AssignSellerForm'
+import { SellTicketForm } from '../sales/SellTicketForm'
 import { TicketBoardCanvas } from './TicketBoardCanvas'
 
 const PAGE_SIZE = 80
@@ -18,6 +19,17 @@ const statusClass: Record<TicketStatus, string> = {
   EN_ABONOS: 'ticket-en-abonos',
   CANCELADA: 'ticket-cancelada',
   PERDIDA: 'ticket-perdida'
+}
+
+function ticketTone(status: TicketStatus, isSettled?: boolean): string {
+  return isSettled ? 'ticket-liquidada' : statusClass[status]
+}
+
+function listQueryFilter(filter: TicketBoardFilter): { status?: TicketStatus; isSettled?: boolean } {
+  if (!filter) return {}
+  if (filter === 'LIQUIDADA') return { isSettled: true }
+  if (filter === 'CANCELADA') return { status: 'CANCELADA', isSettled: false }
+  return { status: filter }
 }
 
 const statusLabel: Record<TicketStatus, string> = {
@@ -35,7 +47,7 @@ export function TicketsPage() {
   const [query, setQuery] = useState(initialQ)
   const [debouncedQuery, setDebouncedQuery] = useState(initialQ)
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [status, setStatus] = useState<TicketStatus | ''>('')
+  const [status, setStatus] = useState<TicketBoardFilter>('')
   const [items, setItems] = useState<TicketSummary[]>([])
   const [total, setTotal] = useState(0)
   const [boardFirst, setBoardFirst] = useState(0)
@@ -45,14 +57,17 @@ export function TicketsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedTicket, setSelectedTicket] = useState<TicketSummary | null>(null)
-  const [assignStep, setAssignStep] = useState<'choose' | 'form'>('choose')
+  const [assignStep, setAssignStep] = useState<'choose' | 'form' | 'sell'>('choose')
+  const [sellSellerId, setSellSellerId] = useState<string | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const loadingMoreRef = useRef(false)
   const itemsRef = useRef<TicketSummary[]>([])
   const totalRef = useRef(0)
   const listGen = useRef(0)
+  const boardFirstRef = useRef(0)
   itemsRef.current = items
   totalRef.current = total
+  boardFirstRef.current = boardFirst
 
   useEffect(() => {
     setQuery(initialQ)
@@ -64,27 +79,59 @@ export function TicketsPage() {
     return () => window.clearTimeout(t)
   }, [query])
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
+  const applyBoardCell = useCallback((number: number, ticketStatus: TicketStatus, isSettled: boolean) => {
+    const first = boardFirstRef.current
+    setPacked((prev) => {
+      const i = number - first
+      if (i < 0 || i >= prev.length) return prev
+      const next = prev.slice()
+      next[i] = packTicketCell(ticketStatus, isSettled)
+      setStats(boardStatsFromPacked(next))
+      return next
+    })
+    setItems((prev) =>
+      prev.map((row) =>
+        row.number === number ? { ...row, status: ticketStatus, isSettled } : row
+      )
+    )
+    setSelectedTicket((current) =>
+      current?.number === number ? { ...current, status: ticketStatus, isSettled } : current
+    )
+  }, [])
+
+  const loadBoard = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
       setLoading(true)
       setError(null)
-      const res = await window.api.tickets.board()
-      if (cancelled) return
-      if (!res.ok) {
+    }
+    const res = await window.api.tickets.board()
+    if (!res.ok) {
+      if (!opts?.silent) {
         setError(res.error)
         setPacked([])
-      } else {
-        setBoardFirst(res.data.first)
-        setPacked(res.data.packed)
-        setStats(boardStatsFromPacked(res.data.packed))
       }
-      setLoading(false)
-    })()
-    return () => {
-      cancelled = true
+    } else {
+      setBoardFirst(res.data.first)
+      setPacked(res.data.packed)
+      setStats(boardStatsFromPacked(res.data.packed))
     }
+    if (!opts?.silent) setLoading(false)
   }, [])
+
+  useEffect(() => {
+    void loadBoard()
+  }, [loadBoard])
+
+  useEffect(() => {
+    if (!window.api.tickets.onBoardUpdated) return
+    return window.api.tickets.onBoardUpdated((payload) => {
+      if (payload.type === 'full') {
+        void loadBoard({ silent: true })
+        return
+      }
+      applyBoardCell(payload.number, payload.status, payload.isSettled)
+    })
+  }, [applyBoardCell, loadBoard])
 
   useEffect(() => {
     if (view !== 'list') return
@@ -94,7 +141,7 @@ export function TicketsPage() {
     void (async () => {
       const res = await window.api.tickets.list({
         query: debouncedQuery || undefined,
-        status: status || undefined,
+        ...listQueryFilter(status),
         take: PAGE_SIZE,
         skip: 0
       })
@@ -134,7 +181,7 @@ export function TicketsPage() {
     setLoadingMore(true)
     const res = await window.api.tickets.list({
       query: debouncedQuery || undefined,
-      status: status || undefined,
+      ...listQueryFilter(status),
       take: PAGE_SIZE,
       skip
     })
@@ -196,14 +243,25 @@ export function TicketsPage() {
   )
 
   const legend = useMemo(
-    () => [
-      { label: 'Sin vender', className: 'ticket-sin-vender' },
-      { label: 'En abonos', className: 'ticket-en-abonos' },
-      { label: 'Cancelada', className: 'ticket-cancelada' },
-      { label: 'Perdida', className: 'ticket-perdida' }
-    ],
+    () =>
+      [
+        { id: 'SIN_VENDER' as const, label: 'Sin vender', className: 'ticket-sin-vender' },
+        { id: 'EN_ABONOS' as const, label: 'En abonos', className: 'ticket-en-abonos' },
+        { id: 'CANCELADA' as const, label: 'Canceladas', className: 'ticket-cancelada' },
+        { id: 'LIQUIDADA' as const, label: 'Liquidadas', className: 'ticket-liquidada' },
+        { id: 'PERDIDA' as const, label: 'Perdidas', className: 'ticket-perdida' }
+      ] satisfies Array<{ id: Exclude<TicketBoardFilter, ''>; label: string; className: string }>,
     []
   )
+
+  const filteredCount = useMemo(() => {
+    if (!status) return packed.length
+    let n = 0
+    for (const cell of packed) {
+      if (packedCellMatchesFilter(cell, status)) n += 1
+    }
+    return n
+  }, [packed, status])
 
   const summaryCards = [
     { label: 'Total de boletas', value: stats?.total, tone: 'bg-white' },
@@ -228,6 +286,7 @@ export function TicketsPage() {
 
   function openAvailable(t: TicketSummary) {
     setAssignStep('choose')
+    setSellSellerId(null)
     setSelectedTicket(t)
   }
 
@@ -235,17 +294,14 @@ export function TicketsPage() {
     const ticketRes = await window.api.tickets.getByNumber(number)
     if (ticketRes.ok) {
       const t = ticketRes.data
-      setPacked((prev) => {
-        const next = prev.slice()
-        const i = number - boardFirst
-        if (i >= 0 && i < next.length) next[i] = packTicketCell(t.status, t.isSettled)
-        setStats(boardStatsFromPacked(next))
-        return next
-      })
-      setItems((prev) => prev.map((row) => (row.number === number ? { ...row, ...t } : row)))
+      applyBoardCell(t.number, t.status, t.isSettled)
     }
+  }
+
+  function closeAssignModal() {
     setSelectedTicket(null)
     setAssignStep('choose')
+    setSellSellerId(null)
   }
 
   return (
@@ -298,16 +354,32 @@ export function TicketsPage() {
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStatus('')}
+              className={cn(
+                'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium',
+                status === ''
+                  ? 'border-brand-800 bg-brand-800 text-white'
+                  : 'border-line bg-white text-ink hover:bg-brand-50'
+              )}
+            >
+              Todas
+            </button>
             {legend.map((item) => (
-              <span
-                key={item.label}
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setStatus((current) => (current === item.id ? '' : item.id))}
+                aria-pressed={status === item.id}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs font-medium',
-                  item.className
+                  'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium',
+                  item.className,
+                  status === item.id ? 'ring-2 ring-brand-800 ring-offset-1' : 'hover:opacity-90'
                 )}
               >
                 {item.label}
-              </span>
+              </button>
             ))}
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
@@ -326,17 +398,6 @@ export function TicketsPage() {
                 className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none ring-brand-700/20 focus:ring-2"
               />
             </form>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as TicketStatus | '')}
-              className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none ring-brand-700/20 focus:ring-2"
-            >
-              <option value="">Todos los estados</option>
-              <option value="SIN_VENDER">Sin vender</option>
-              <option value="EN_ABONOS">En abonos</option>
-              <option value="CANCELADA">Cancelada</option>
-              <option value="PERDIDA">Perdida</option>
-            </select>
           </div>
         </div>
       </div>
@@ -352,7 +413,7 @@ export function TicketsPage() {
         <button
           type="button"
           className="sticky top-0 z-20 flex w-full items-center justify-between gap-3 rounded-xl border border-forest/20 bg-brand-50 px-4 py-3 text-left shadow-sm transition hover:bg-brand-100"
-          onClick={() => onPick(searchHit.number, searchHit.status, searchHit.isSettled)}
+          onClick={() => navigate(`/boletas/${searchHit.number}`)}
         >
           <span>
             <span className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
@@ -368,10 +429,10 @@ export function TicketsPage() {
           <span
             className={cn(
               'rounded-md border px-2 py-0.5 text-xs font-medium',
-              statusClass[searchHit.status]
+              ticketTone(searchHit.status, searchHit.isSettled)
             )}
           >
-            {statusLabel[searchHit.status]}
+            {searchHit.isSettled ? 'Liquidada' : statusLabel[searchHit.status]}
           </span>
         </button>
       )}
@@ -379,7 +440,7 @@ export function TicketsPage() {
       {loading && <p className="text-ink-muted">Cargando boletas…</p>}
       {error && <p className="text-accent-red">{error}</p>}
 
-      {!loading && !error && packed.length > 0 && view === 'grid' && (
+      {!loading && !error && packed.length > 0 && view === 'grid' && filteredCount > 0 && (
         <div className="app-card p-4">
           <TicketBoardCanvas
             first={boardFirst}
@@ -389,7 +450,8 @@ export function TicketsPage() {
             onPick={onPick}
           />
           <p className="mt-3 text-center text-xs text-ink-muted">
-            {packed.length.toLocaleString('es-CO')} boletas
+            {filteredCount.toLocaleString('es-CO')} boletas
+            {status ? ' en este filtro' : ''}
           </p>
         </div>
       )}
@@ -432,10 +494,10 @@ export function TicketsPage() {
                     <span
                       className={cn(
                         'rounded-md border px-2 py-0.5 text-xs font-medium',
-                        statusClass[t.status]
+                        ticketTone(t.status, t.isSettled)
                       )}
                     >
-                      {statusLabel[t.status]}
+                      {t.isSettled ? 'Liquidada' : statusLabel[t.status]}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">{t.sellerName ?? '—'}</td>
@@ -481,6 +543,11 @@ export function TicketsPage() {
           No hay boletas para mostrar.
         </div>
       )}
+      {!loading && !error && view === 'grid' && packed.length > 0 && filteredCount === 0 && (
+        <div className="app-card border-dashed p-10 text-center text-ink-muted">
+          No hay boletas en ese estado.
+        </div>
+      )}
       {!loading && !error && view === 'list' && items.length === 0 && (
         <div className="app-card border-dashed p-10 text-center text-ink-muted">
           No hay boletas para mostrar.
@@ -492,7 +559,7 @@ export function TicketsPage() {
           <div
             className={cn(
               'max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl',
-              assignStep === 'form' ? 'max-w-3xl' : 'max-w-md'
+              assignStep === 'choose' ? 'max-w-md' : 'max-w-3xl'
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -512,10 +579,7 @@ export function TicketsPage() {
               <button
                 type="button"
                 className="btn-ghost px-2 py-2"
-                onClick={() => {
-                  setSelectedTicket(null)
-                  setAssignStep('choose')
-                }}
+                onClick={closeAssignModal}
               >
                 <X size={16} />
               </button>
@@ -526,14 +590,7 @@ export function TicketsPage() {
                   Asigne esta boleta a un vendedor. No se marca como vendida y no necesita comprador.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => {
-                      setSelectedTicket(null)
-                      setAssignStep('choose')
-                    }}
-                  >
+                  <button type="button" className="btn-ghost" onClick={closeAssignModal}>
                     Cancelar
                   </button>
                   <button
@@ -541,7 +598,7 @@ export function TicketsPage() {
                     className="btn-ghost"
                     onClick={() => {
                       const n = selectedTicket.number
-                      setSelectedTicket(null)
+                      closeAssignModal()
                       navigate(`/boletas/${n}`)
                     }}
                   >
@@ -552,13 +609,33 @@ export function TicketsPage() {
                   </button>
                 </div>
               </>
+            ) : assignStep === 'sell' ? (
+              <div className="mt-4">
+                <SellTicketForm
+                  ticketNumber={selectedTicket.number}
+                  defaultSellerId={sellSellerId ?? selectedTicket.sellerId}
+                  intent="abono"
+                  embedded
+                  onSold={() => {
+                    void refreshAfterAssign(selectedTicket.number).then(closeAssignModal)
+                  }}
+                  onCancel={closeAssignModal}
+                />
+              </div>
             ) : (
               <div className="mt-4">
                 <AssignSellerForm
                   ticketNumber={selectedTicket.number}
                   currentSellerName={selectedTicket.sellerName}
                   defaultSellerId={selectedTicket.sellerId}
-                  onAssigned={() => void refreshAfterAssign(selectedTicket.number)}
+                  onAssigned={() => {
+                    void refreshAfterAssign(selectedTicket.number).then(closeAssignModal)
+                  }}
+                  onWantAbono={(sellerId) => {
+                    setSellSellerId(sellerId)
+                    setAssignStep('sell')
+                    void refreshAfterAssign(selectedTicket.number)
+                  }}
                 />
               </div>
             )}

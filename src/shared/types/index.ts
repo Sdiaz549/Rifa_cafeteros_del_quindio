@@ -36,6 +36,10 @@ export interface TicketBoardSnapshot {
   packed: number[]
 }
 
+export type TicketBoardLiveUpdate =
+  | { type: 'full' }
+  | { type: 'cell'; number: number; status: TicketStatus; isSettled: boolean }
+
 export interface ApiErrorShape {
   ok: false
   error: string
@@ -49,6 +53,21 @@ export interface ApiSuccess<T> {
 
 export type ApiResult<T> = ApiSuccess<T> | ApiErrorShape
 
+export interface BuyerTicketSummary {
+  number: number
+  status: TicketStatus
+  totalPaid: number
+  balanceDue: number
+  payments: Array<{
+    id: string
+    amount: number
+    paidAt: string
+    type: string
+    paymentMethodName: string
+    notes: string | null
+  }>
+}
+
 export interface BuyerSummary {
   id: string
   fullName: string
@@ -58,7 +77,19 @@ export interface BuyerSummary {
   email: string | null
   notes: string | null
   ticketsCount?: number
+  ticketNumbers?: number[]
   balanceDue?: number
+  totalPaid?: number
+  tickets?: BuyerTicketSummary[]
+}
+
+export interface SellerTicketSummary {
+  number: number
+  status: TicketStatus
+  isSettled: boolean
+  totalPaid: number
+  balanceDue: number
+  buyerName: string | null
 }
 
 export interface SellerSummary {
@@ -78,6 +109,7 @@ export interface SellerSummary {
   collectedTotal?: number
   pendingTotal?: number
   ticketNumbers?: number[]
+  tickets?: SellerTicketSummary[]
 }
 
 export interface AssignTicketInput {
@@ -85,8 +117,8 @@ export interface AssignTicketInput {
   sellerId?: string
   seller?: {
     fullName: string
-    documentId: string
-    phone: string
+    documentId?: string
+    phone?: string
     address?: string
   }
 }
@@ -120,8 +152,8 @@ export interface CreateSaleInput {
   buyerId?: string
   buyer?: {
     fullName: string
-    documentId: string
-    phone: string
+    documentId?: string
+    phone?: string
     address?: string
     email?: string
   }

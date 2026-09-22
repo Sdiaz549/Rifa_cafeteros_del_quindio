@@ -15,6 +15,13 @@ export function parseCopInput(raw: string): number {
   return Math.trunc(Number(digits))
 }
 
+/** Formato de captura: 20000 → 20,000 */
+export function formatCopInputValue(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '')
+  if (!digits) return ''
+  return Number(digits).toLocaleString('en-US')
+}
+
 export function assertNonNegativeMoney(amount: number, label = 'valor'): void {
   if (!Number.isInteger(amount) || amount < 0) {
     throw new Error(`El ${label} debe ser un entero no negativo en pesos.`)

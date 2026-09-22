@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
@@ -6,12 +7,12 @@ import { DEFAULT_TICKET_PRICE } from '../../shared/constants'
 import { assertNonNegativeMoney } from '../../shared/money'
 import { canSell, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
 import type { ApiResult, CreateSaleInput, TicketSummary } from '../../shared/types'
-import { invalidateTicketBoard } from './ticketBoardCache'
+import { updateTicketBoardCell } from './ticketBoardCache'
 
 const buyerInlineSchema = z.object({
   fullName: z.string().min(2),
-  documentId: z.string().min(3),
-  phone: z.string().min(5),
+  documentId: z.string().optional(),
+  phone: z.string().optional(),
   address: z.string().optional(),
   email: z.string().email().optional().or(z.literal(''))
 })
@@ -76,7 +77,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       return { ok: false, error: 'El pago inicial no puede superar el valor de la boleta.' }
     }
     if (!input.buyerId && !input.buyer) {
-      return { ok: false, error: 'Debe indicar un comprador existente o crear uno nuevo.' }
+      return { ok: false, error: 'Indique los datos del comprador.' }
     }
 
     const prisma = getPrisma()
@@ -102,26 +103,32 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
 
       let buyerId = input.buyerId
       if (!buyerId && input.buyer) {
-        const existing = await tx.buyer.findUnique({
-          where: { documentId: input.buyer.documentId }
-        })
+        const documentId = input.buyer.documentId?.trim() ?? ''
+        const phone = input.buyer.phone?.trim() ?? ''
+        const fullName = input.buyer.fullName.trim()
+        const existing = documentId
+          ? await tx.buyer.findUnique({ where: { documentId } })
+          : await tx.buyer.findFirst({
+              where: phone ? { fullName, phone } : { fullName }
+            })
         if (existing) {
           buyerId = existing.id
           await tx.buyer.update({
             where: { id: existing.id },
             data: {
-              fullName: input.buyer.fullName,
-              phone: input.buyer.phone,
+              fullName,
+              phone: phone || existing.phone,
               address: input.buyer.address || existing.address,
-              email: input.buyer.email || existing.email
+              email: input.buyer.email || existing.email,
+              ...(documentId && existing.documentId.startsWith('SC-') ? { documentId } : {})
             }
           })
         } else {
           const created = await tx.buyer.create({
             data: {
-              fullName: input.buyer.fullName,
-              documentId: input.buyer.documentId,
-              phone: input.buyer.phone,
+              fullName,
+              documentId: documentId || `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+              phone,
               address: input.buyer.address || null,
               email: input.buyer.email || null
             }
@@ -213,7 +220,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       return ticketUpdated
     })
 
-    invalidateTicketBoard()
+    updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
     return { ok: true, data: mapTicket(updated) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al registrar la venta' }
