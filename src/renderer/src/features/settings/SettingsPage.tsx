@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { formatCop } from '@shared/money'
 import { DEFAULT_TICKET_PRICE } from '@shared/constants'
 import type { AppSettings } from '@shared/types'
+import { UsersPage } from '../users/UsersPage'
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -62,7 +63,7 @@ export function SettingsPage() {
       <PageHeader
         icon={<Settings size={22} />}
         title="Configuración"
-        description="Parámetros de la rifa, empresa y generación de boletas."
+        description="Parámetros de la rifa, empresa y gestión de usuarios."
       />
 
       <form onSubmit={onSubmit} className="app-card mx-auto max-w-3xl space-y-4 p-6">
@@ -125,6 +126,16 @@ export function SettingsPage() {
           {saving ? 'Guardando…' : 'Guardar configuración'}
         </button>
       </form>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-2xl text-brand-900">Gestión de usuarios</h2>
+          <p className="text-sm text-ink-muted">
+            Cree usuarios, cambie el nombre de acceso y actualice contraseñas.
+          </p>
+        </div>
+        <UsersPage embedded />
+      </section>
     </div>
   )
 }

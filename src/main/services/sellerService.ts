@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { PrismaClient } from '@prisma/client'
 import { getPrisma } from '../db/client'
@@ -6,9 +7,10 @@ import { assertPermission } from '../../shared/permissions'
 import type { ApiResult, SellerSummary, SellerTicketSummary, TicketStatus } from '../../shared/types'
 
 const sellerSchema = z.object({
-  fullName: z.string().min(2),
-  documentId: z.string().min(3),
-  phone: z.string().min(5),
+  id: z.string().optional(),
+  fullName: z.string().trim().min(2, 'El nombre del vendedor es obligatorio.'),
+  documentId: z.string().trim().optional().nullable(),
+  phone: z.string().trim().optional().nullable(),
   address: z.string().optional().nullable(),
   status: z.enum(['ACTIVO', 'INACTIVO']).optional(),
   notes: z.string().optional().nullable()
@@ -183,17 +185,24 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
     assertPermission(session.role, 'sellers:manage')
     const parsed = sellerSchema.safeParse(raw)
     if (!parsed.success) {
-      return { ok: false, error: 'Datos de vendedor inválidos.' }
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Datos de vendedor inválidos.' }
     }
     const data = parsed.data
     const prisma = getPrisma()
-    const existing = await prisma.seller.findUnique({ where: { documentId: data.documentId } })
+    const documentId = data.documentId?.trim() || ''
+    const phone = data.phone?.trim() || ''
+    const existing = data.id
+      ? await prisma.seller.findUnique({ where: { id: data.id } })
+      : documentId
+        ? await prisma.seller.findUnique({ where: { documentId } })
+        : null
     const seller = existing
       ? await prisma.seller.update({
           where: { id: existing.id },
           data: {
             fullName: data.fullName,
-            phone: data.phone,
+            ...(documentId ? { documentId } : {}),
+            phone,
             address: data.address || null,
             status: data.status ?? existing.status,
             notes: data.notes || null
@@ -215,8 +224,8 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
       : await prisma.seller.create({
           data: {
             fullName: data.fullName,
-            documentId: data.documentId,
-            phone: data.phone,
+            documentId: documentId || `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+            phone,
             address: data.address || null,
             status: data.status ?? 'ACTIVO',
             notes: data.notes || null

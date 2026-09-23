@@ -10,14 +10,16 @@ const emptyForm = {
   username: '',
   fullName: '',
   password: '',
+  confirmPassword: '',
   role: 'USER' as 'ADMIN' | 'USER'
 }
 
-export function UsersPage() {
+export function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const [items, setItems] = useState<UserSummary[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editing, setEditing] = useState<UserSummary | null>(null)
   const [editPassword, setEditPassword] = useState('')
+  const [editConfirm, setEditConfirm] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -38,8 +40,17 @@ export function UsersPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
+    if (form.password !== form.confirmPassword) {
+      toast.error('Las contraseñas no coinciden.')
+      return
+    }
     setSaving(true)
-    const res = await window.api.users.create(form)
+    const res = await window.api.users.create({
+      username: form.username,
+      fullName: form.fullName,
+      password: form.password,
+      role: form.role
+    })
     setSaving(false)
     if (!res.ok) {
       toast.error(res.error)
@@ -52,9 +63,14 @@ export function UsersPage() {
 
   async function saveEdit() {
     if (!editing) return
+    if (editPassword && editPassword !== editConfirm) {
+      toast.error('Las contraseñas no coinciden.')
+      return
+    }
     setSaving(true)
     const res = await window.api.users.update({
       id: editing.id,
+      username: editing.username,
       fullName: editing.fullName,
       role: editing.role,
       isActive: editing.isActive,
@@ -65,49 +81,82 @@ export function UsersPage() {
       toast.error(res.error)
       return
     }
-    toast.success('Usuario actualizado')
+    toast.success(editPassword ? 'Usuario y contraseña actualizados' : 'Usuario actualizado')
     setEditing(null)
     setEditPassword('')
+    setEditConfirm('')
     await load()
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={<UserCog size={22} />}
-        title="Usuarios"
-        description="Administre cuentas, roles y estado de acceso al sistema."
-      />
+      {!embedded && (
+        <PageHeader
+          icon={<UserCog size={22} />}
+          title="Usuarios"
+          description="Cree cuentas, cambie usuarios y contraseñas, y active o desactive el acceso."
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <form onSubmit={onCreate} className="app-card space-y-3 p-5">
           <h2 className="font-display text-xl text-brand-900">Nuevo usuario</h2>
-          <input
-            placeholder="Usuario"
-            value={form.username}
-            onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))}
-            required
-          />
-          <input
-            placeholder="Nombre completo"
-            value={form.fullName}
-            onChange={(e) => setForm((s) => ({ ...s, fullName: e.target.value }))}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Contraseña (mín. 8)"
-            value={form.password}
-            onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-            required
-          />
-          <select
-            value={form.role}
-            onChange={(e) => setForm((s) => ({ ...s, role: e.target.value as 'ADMIN' | 'USER' }))}
-          >
-            <option value="USER">Usuario</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
+          <label className="text-sm">
+            Usuario
+            <input
+              className="mt-1 w-full"
+              placeholder="ej. operador"
+              value={form.username}
+              onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))}
+              required
+              minLength={3}
+            />
+          </label>
+          <label className="text-sm">
+            Nombre completo
+            <input
+              className="mt-1 w-full"
+              placeholder="Nombre y apellido"
+              value={form.fullName}
+              onChange={(e) => setForm((s) => ({ ...s, fullName: e.target.value }))}
+              required
+            />
+          </label>
+          <label className="text-sm">
+            Contraseña
+            <input
+              className="mt-1 w-full"
+              type="password"
+              placeholder="Mínimo 8 caracteres"
+              value={form.password}
+              onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+              required
+              minLength={8}
+            />
+          </label>
+          <label className="text-sm">
+            Confirmar contraseña
+            <input
+              className="mt-1 w-full"
+              type="password"
+              placeholder="Repita la contraseña"
+              value={form.confirmPassword}
+              onChange={(e) => setForm((s) => ({ ...s, confirmPassword: e.target.value }))}
+              required
+              minLength={8}
+            />
+          </label>
+          <label className="text-sm">
+            Rol
+            <select
+              className="mt-1 w-full"
+              value={form.role}
+              onChange={(e) => setForm((s) => ({ ...s, role: e.target.value as 'ADMIN' | 'USER' }))}
+            >
+              <option value="USER">Usuario (operación diaria)</option>
+              <option value="ADMIN">Administrador</option>
+            </select>
+          </label>
           <button type="submit" disabled={saving} className="btn-primary w-full">
             {saving ? 'Guardando…' : 'Crear usuario'}
           </button>
@@ -133,6 +182,13 @@ export function UsersPage() {
                   </td>
                 </tr>
               )}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-ink-muted">
+                    No hay usuarios.
+                  </td>
+                </tr>
+              )}
               {items.map((u) => (
                 <tr key={u.id}>
                   <td className="font-medium">{u.fullName}</td>
@@ -150,7 +206,15 @@ export function UsersPage() {
                   </td>
                   <td>{formatDateCo(u.createdAt)}</td>
                   <td>
-                    <button type="button" className="text-sm font-semibold text-brand-800" onClick={() => setEditing(u)}>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-brand-800"
+                      onClick={() => {
+                        setEditing(u)
+                        setEditPassword('')
+                        setEditConfirm('')
+                      }}
+                    >
                       Editar
                     </button>
                   </td>
@@ -164,18 +228,35 @@ export function UsersPage() {
       {editing && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
           <div className="app-card w-full max-w-md space-y-3 p-6">
-            <h2 className="font-display text-2xl text-brand-900">Editar {editing.username}</h2>
-            <input
-              value={editing.fullName}
-              onChange={(e) => setEditing({ ...editing, fullName: e.target.value })}
-            />
-            <select
-              value={editing.role}
-              onChange={(e) => setEditing({ ...editing, role: e.target.value as 'ADMIN' | 'USER' })}
-            >
-              <option value="USER">Usuario</option>
-              <option value="ADMIN">Administrador</option>
-            </select>
+            <h2 className="font-display text-2xl text-brand-900">Editar usuario</h2>
+            <label className="text-sm">
+              Usuario
+              <input
+                className="mt-1 w-full"
+                value={editing.username}
+                onChange={(e) => setEditing({ ...editing, username: e.target.value })}
+                minLength={3}
+              />
+            </label>
+            <label className="text-sm">
+              Nombre completo
+              <input
+                className="mt-1 w-full"
+                value={editing.fullName}
+                onChange={(e) => setEditing({ ...editing, fullName: e.target.value })}
+              />
+            </label>
+            <label className="text-sm">
+              Rol
+              <select
+                className="mt-1 w-full"
+                value={editing.role}
+                onChange={(e) => setEditing({ ...editing, role: e.target.value as 'ADMIN' | 'USER' })}
+              >
+                <option value="USER">Usuario (operación diaria)</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -184,18 +265,44 @@ export function UsersPage() {
               />
               Activo
             </label>
-            <input
-              type="password"
-              placeholder="Nueva contraseña (opcional)"
-              value={editPassword}
-              onChange={(e) => setEditPassword(e.target.value)}
-            />
+            <label className="text-sm">
+              Nueva contraseña
+              <input
+                className="mt-1 w-full"
+                type="password"
+                placeholder="Déjela vacía si no va a cambiarla"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                minLength={8}
+              />
+            </label>
+            {editPassword ? (
+              <label className="text-sm">
+                Confirmar nueva contraseña
+                <input
+                  className="mt-1 w-full"
+                  type="password"
+                  placeholder="Repita la nueva contraseña"
+                  value={editConfirm}
+                  onChange={(e) => setEditConfirm(e.target.value)}
+                  minLength={8}
+                />
+              </label>
+            ) : null}
             <div className="flex justify-end gap-2">
-              <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setEditing(null)
+                  setEditPassword('')
+                  setEditConfirm('')
+                }}
+              >
                 Cancelar
               </button>
-              <button type="button" className="btn-primary" onClick={() => void saveEdit()}>
-                Guardar
+              <button type="button" className="btn-primary" disabled={saving} onClick={() => void saveEdit()}>
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
           </div>

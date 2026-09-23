@@ -108,9 +108,10 @@ const api = {
       take?: number
     }): Promise<ApiResult<SellerSummary[]>> => ipcRenderer.invoke('sellers:list', payload),
     upsert: (payload: {
+      id?: string
       fullName: string
-      documentId: string
-      phone: string
+      documentId?: string
+      phone?: string
       address?: string | null
       status?: 'ACTIVO' | 'INACTIVO'
       notes?: string | null
@@ -144,6 +145,7 @@ const api = {
     }): Promise<ApiResult<UserSummary>> => ipcRenderer.invoke('users:create', payload),
     update: (payload: {
       id: string
+      username?: string
       fullName?: string
       password?: string
       role?: 'ADMIN' | 'USER'
