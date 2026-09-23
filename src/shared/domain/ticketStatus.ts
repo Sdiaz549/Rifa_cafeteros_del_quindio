@@ -50,7 +50,7 @@ export function canSell(status: TicketStatus): boolean {
 }
 
 export function canAssign(status: TicketStatus): boolean {
-  return status === 'SIN_VENDER'
+  return status !== 'PERDIDA'
 }
 
 export function canSettle(status: TicketStatus, isSettled: boolean): boolean {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAcceptPayment,
+  canAssign,
   canSell,
   canSettle,
   recalcTicketFinancials
@@ -12,6 +13,13 @@ describe('sale and payment business rules', () => {
     expect(canSell('EN_ABONOS')).toBe(false)
     expect(canSell('CANCELADA')).toBe(false)
     expect(canSell('PERDIDA')).toBe(false)
+  })
+
+  it('allows assigning a seller to sold tickets except PERDIDA', () => {
+    expect(canAssign('SIN_VENDER')).toBe(true)
+    expect(canAssign('EN_ABONOS')).toBe(true)
+    expect(canAssign('CANCELADA')).toBe(true)
+    expect(canAssign('PERDIDA')).toBe(false)
   })
 
   it('rejects payment above pending balance via financial recalculation', () => {

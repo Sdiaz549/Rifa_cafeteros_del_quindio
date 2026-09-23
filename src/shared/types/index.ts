@@ -58,14 +58,18 @@ export interface BuyerTicketSummary {
   status: TicketStatus
   totalPaid: number
   balanceDue: number
+  sellerId: string | null
+  sellerName: string | null
   payments: Array<{
-    id: string
-    amount: number
-    paidAt: string
-    type: string
-    paymentMethodName: string
-    notes: string | null
-  }>
+      id: string
+      amount: number
+      paidAt: string
+      type: string
+      paymentMethodId: string
+      paymentMethodName: string
+      notes: string | null
+      status: RecordStatus
+    }>
 }
 
 export interface BuyerSummary {
@@ -173,6 +177,14 @@ export interface CreatePaymentInput {
   origin?: PaymentOrigin
 }
 
+export interface UpdatePaymentInput {
+  id: string
+  amount?: number
+  paymentMethodId?: string
+  paidAt?: string
+  notes?: string | null
+}
+
 export interface CreateSettlementInput {
   ticketNumber: number
   settledAt?: string
@@ -210,6 +222,7 @@ export interface IncomeSummary {
   type: PaymentType
   amount: number
   paidAt: string
+  paymentMethodId: string
   paymentMethodName: string
   sellerName: string | null
   buyerName: string | null
@@ -408,7 +421,9 @@ export interface HomePaymentRow {
   ticketNumber: number
   buyerName: string
   amount: number
+  paymentMethodId: string
   paymentMethodName: string
+  notes: string | null
 }
 
 export interface HomeTicketStats {

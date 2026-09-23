@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthContext'
 import { AssignSellerForm } from './AssignSellerForm'
 import { SellTicketForm } from '../sales/SellTicketForm'
 import { TicketBoardCanvas } from './TicketBoardCanvas'
+import { TicketEditButton } from './TicketEditModal'
 
 const PAGE_SIZE = 80
 
@@ -505,7 +506,7 @@ export function TicketsPage() {
                   <td className="px-4 py-2.5">{formatCop(t.totalPaid)}</td>
                   <td className="px-4 py-2.5">{formatCop(t.balanceDue)}</td>
                   <td className="px-4 py-2.5 text-right">
-                    {t.status === 'SIN_VENDER' && can('tickets:sell') && (
+                    {t.status === 'SIN_VENDER' && can('tickets:sell') ? (
                       <button
                         type="button"
                         className="rounded-lg bg-forest px-3 py-1 text-xs font-semibold text-white"
@@ -514,9 +515,24 @@ export function TicketsPage() {
                           setAssignStep('form')
                         }}
                       >
-                        Asignar
+                        {t.sellerName ? 'Cambiar vendedor' : 'Asignar'}
                       </button>
-                    )}
+                    ) : t.status !== 'PERDIDA' ? (
+                      <TicketEditButton
+                        ticketNumber={t.number}
+                        onChanged={() => {
+                          void loadBoard({ silent: true })
+                          void window.api.tickets.getByNumber(t.number).then((res) => {
+                            if (!res.ok) return
+                            setItems((prev) =>
+                              prev.map((row) => (row.number === t.number ? res.data : row))
+                            )
+                          })
+                        }}
+                      >
+                        Editar
+                      </TicketEditButton>
+                    ) : null}
                   </td>
                 </tr>
               ))}

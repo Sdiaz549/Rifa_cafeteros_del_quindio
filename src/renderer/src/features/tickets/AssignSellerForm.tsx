@@ -9,13 +9,15 @@ export function AssignSellerForm({
   currentSellerName,
   defaultSellerId,
   onAssigned,
-  onWantAbono
+  onWantAbono,
+  skipAbonoPrompt = false
 }: {
   ticketNumber: number
   currentSellerName?: string | null
   defaultSellerId?: string | null
   onAssigned?: () => void
   onWantAbono?: (sellerId: string) => void
+  skipAbonoPrompt?: boolean
 }) {
   const { can } = useAuth()
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
@@ -81,8 +83,12 @@ export function AssignSellerForm({
       toast.error(res.error)
       return
     }
-    toast.success(`Boleta ${formatTicketNumber(ticketNumber)} asignada al vendedor`)
-    if (can('tickets:sell') && res.data.sellerId) {
+    toast.success(
+      currentSellerName
+        ? `Vendedor de la boleta ${formatTicketNumber(ticketNumber)} actualizado`
+        : `Boleta ${formatTicketNumber(ticketNumber)} asignada al vendedor`
+    )
+    if (!skipAbonoPrompt && can('tickets:sell') && res.data.sellerId) {
       setAssignedSellerId(res.data.sellerId)
       setAskAbono(true)
       return
@@ -117,12 +123,16 @@ export function AssignSellerForm({
   }
 
   return (
-    <form id="asignar" onSubmit={onSubmit} className="space-y-4">
+    <form id={`asignar-${ticketNumber}`} onSubmit={onSubmit} className="space-y-4">
       <div>
-        <h2 className="font-display text-2xl font-semibold text-brand-900">Asignar a un vendedor</h2>
+        <h2 className="font-display text-2xl font-semibold text-brand-900">
+          {currentSellerName ? 'Cambiar vendedor' : 'Asignar a un vendedor'}
+        </h2>
         <p className="text-sm text-ink-muted">
-          Boleta {formatTicketNumber(ticketNumber)}. Queda en el vendedor y sigue disponible; no se
-          marca como vendida ni pide comprador.
+          Boleta {formatTicketNumber(ticketNumber)}.
+          {skipAbonoPrompt
+            ? ' Puede cambiar el vendedor de esta boleta.'
+            : ' Queda en el vendedor y sigue disponible; no se marca como vendida ni pide comprador.'}
         </p>
         {currentSellerName && (
           <p className="mt-2 text-sm">
@@ -203,7 +213,7 @@ export function AssignSellerForm({
       )}
 
       <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-60">
-        {submitting ? 'Guardando…' : 'Asignar a un vendedor'}
+        {submitting ? 'Guardando…' : currentSellerName ? 'Guardar vendedor' : 'Asignar a un vendedor'}
       </button>
     </form>
   )

@@ -7,6 +7,7 @@ import { formatTicketNumber } from '@shared/tickets/numbers'
 import { SETTLEMENT_AMOUNT_PER_TICKET } from '@shared/constants'
 import type { SellerSummary, SellerTicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
+import { TicketEditButton } from '../tickets/TicketEditModal'
 
 const emptyForm = {
   id: '',
@@ -466,6 +467,7 @@ export function SellersPage() {
                         <th className="px-3 py-2 font-medium">Estado</th>
                         <th className="px-3 py-2 font-medium">Abonado</th>
                         <th className="px-3 py-2 font-medium">Saldo</th>
+                        <th className="px-3 py-2 font-medium" />
                         {selecting && <th className="px-3 py-2 font-medium">Liquidar</th>}
                       </tr>
                     </thead>
@@ -501,6 +503,18 @@ export function SellersPage() {
                             <td className="px-3 py-2">{ticketStatusLabel(t.status)}</td>
                             <td className="px-3 py-2 font-medium">{formatCop(t.totalPaid)}</td>
                             <td className="px-3 py-2">{formatCop(t.balanceDue)}</td>
+                            <td className="px-3 py-2">
+                              {t.status !== 'PERDIDA' && (
+                                <TicketEditButton
+                                  ticketNumber={t.number}
+                                  onChanged={() => {
+                                    if (selected) void openSeller(selected.id)
+                                  }}
+                                >
+                                  Editar
+                                </TicketEditButton>
+                              )}
+                            </td>
                             {selecting && (
                               <td className="px-3 py-2 font-medium">
                                 {eligible ? formatCop(SETTLEMENT_AMOUNT_PER_TICKET) : '—'}

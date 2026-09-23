@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Users } from 'lucide-react'
 import { formatCop } from '@shared/money'
-import { formatDateCo } from '@shared/dates'
 import { formatTicketNumber } from '@shared/tickets/numbers'
-import type { BuyerSummary } from '@shared/types'
+import type { BuyerSummary, PaymentSummary } from '@shared/types'
 import { PageHeader } from '../../components/PageHeader'
+import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
+import { AssignSellerForm } from '../tickets/AssignSellerForm'
+import { useAuth } from '../auth/AuthContext'
 
 const statusLabel: Record<string, string> = {
   SIN_VENDER: 'Sin vender',
@@ -25,6 +27,7 @@ function displayPhone(value: string | null | undefined): string {
 }
 
 export function BuyersPage() {
+  const { can } = useAuth()
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<BuyerSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -156,35 +159,53 @@ export function BuyersPage() {
                           Boleta {formatTicketNumber(ticket.number)}
                         </Link>
                         <p className="text-xs text-ink-muted">{statusLabel[ticket.status] ?? ticket.status}</p>
+                        <p className="text-xs text-ink-muted">
+                          Vendedor: {ticket.sellerName ?? 'Sin asignar'}
+                        </p>
                       </div>
                       <div className="text-right text-sm">
                         <p>Abonado: <strong>{formatCop(ticket.totalPaid)}</strong></p>
                         <p>Saldo: <strong>{formatCop(ticket.balanceDue)}</strong></p>
                       </div>
                     </div>
+                    {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+                      <div className="mt-3 rounded-xl border border-line p-3">
+                        <AssignSellerForm
+                          ticketNumber={ticket.number}
+                          currentSellerName={ticket.sellerName}
+                          defaultSellerId={ticket.sellerId}
+                          skipAbonoPrompt
+                          onAssigned={() => void load(query)}
+                        />
+                      </div>
+                    )}
                     {ticket.payments.length === 0 ? (
                       <p className="mt-3 text-sm text-ink-muted">Sin abonos registrados.</p>
                     ) : (
-                      <table className="mt-3 w-full text-left text-sm">
-                        <thead className="text-xs text-ink-muted">
-                          <tr>
-                            <th className="py-1 font-medium">Fecha</th>
-                            <th className="py-1 font-medium">Valor</th>
-                            <th className="py-1 font-medium">Método</th>
-                            <th className="py-1 font-medium">Observación</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ticket.payments.map((p) => (
-                            <tr key={p.id} className="border-t border-line/70">
-                              <td className="py-1.5">{formatDateCo(p.paidAt)}</td>
-                              <td className="py-1.5 font-medium">{formatCop(p.amount)}</td>
-                              <td className="py-1.5">{p.paymentMethodName}</td>
-                              <td className="py-1.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="mt-3 overflow-hidden rounded-xl border border-line">
+                        <PaymentHistoryTable
+                          payments={ticket.payments.map(
+                            (p, index): PaymentSummary => ({
+                              id: p.id,
+                              ticketId: '',
+                              ticketNumber: ticket.number,
+                              type: p.type === 'VENTA_INICIAL' ? 'VENTA_INICIAL' : 'ABONO',
+                              amount: p.amount,
+                              paidAt: p.paidAt,
+                              paymentMethodId: p.paymentMethodId,
+                              paymentMethodName: p.paymentMethodName,
+                              userId: '',
+                              userName: '',
+                              origin: 'MANUAL',
+                              notes: p.notes,
+                              sequence: index + 1,
+                              status: p.status
+                            })
+                          )}
+                          ticketNumber={ticket.number}
+                          onChanged={() => void load(query)}
+                        />
+                      </div>
                     )}
                   </div>
                 ))

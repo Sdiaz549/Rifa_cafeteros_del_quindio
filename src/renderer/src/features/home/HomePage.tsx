@@ -28,6 +28,8 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { TicketEditButton } from '../tickets/TicketEditModal'
+import { voidPaymentById } from '../payments/PaymentHistoryTable'
 import { useAuth } from '../auth/AuthContext'
 import { formatCop } from '@shared/money'
 import { formatDateCo } from '@shared/dates'
@@ -340,12 +342,13 @@ export function HomePage() {
                   <th className="px-4 py-2 font-semibold">Vendedor</th>
                   <th className="px-4 py-2 font-semibold">Valor</th>
                   <th className="px-4 py-2 font-semibold">Estado</th>
+                  <th className="px-4 py-2 font-semibold"></th>
                 </tr>
               </thead>
               <tbody>
                 {data.recentSales.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-dash-muted">
+                    <td colSpan={7} className="px-4 py-8 text-center text-dash-muted">
                       No hay ventas registradas.
                     </td>
                   </tr>
@@ -365,6 +368,13 @@ export function HomePage() {
                       <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold', STATUS_PILL[row.status])}>
                         {STATUS_LABEL[row.status]}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {row.status !== 'PERDIDA' && can('tickets:sell') && (
+                        <TicketEditButton ticketNumber={row.ticketNumber} onChanged={() => void load()}>
+                          Editar
+                        </TicketEditButton>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -387,12 +397,13 @@ export function HomePage() {
                   <th className="px-4 py-2 font-semibold">Comprador</th>
                   <th className="px-4 py-2 font-semibold">Valor</th>
                   <th className="px-4 py-2 font-semibold">Método</th>
+                  <th className="px-4 py-2 font-semibold"></th>
                 </tr>
               </thead>
               <tbody>
                 {data.recentPayments.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-dash-muted">
+                    <td colSpan={6} className="px-4 py-8 text-center text-dash-muted">
                       No hay abonos registrados.
                     </td>
                   </tr>
@@ -408,6 +419,26 @@ export function HomePage() {
                     <td className="px-4 py-2.5 text-forest">{row.buyerName}</td>
                     <td className="px-4 py-2.5 font-medium text-forest">{formatCop(row.amount)}</td>
                     <td className="px-4 py-2.5 text-forest">{row.paymentMethodName}</td>
+                    <td className="px-4 py-2.5">
+                      {can('payments:create') && (
+                        <div className="flex flex-wrap gap-2">
+                          <TicketEditButton ticketNumber={row.ticketNumber} onChanged={() => void load()}>
+                            Editar
+                          </TicketEditButton>
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-accent-red"
+                            onClick={() =>
+                              void voidPaymentById(row.id, row.amount).then((ok) => {
+                                if (ok) void load()
+                              })
+                            }
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

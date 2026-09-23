@@ -53,6 +53,9 @@ const handlers: Record<IpcChannel, IpcHandler> = {
     paymentService.createPayment(payload as Parameters<typeof paymentService.createPayment>[0]),
   [IPC_CHANNELS.PAYMENTS_LIST_BY_TICKET]: async (_e, ticketNumber) =>
     paymentService.listPaymentsByTicket(ticketNumber as number),
+  [IPC_CHANNELS.PAYMENTS_UPDATE]: async (_e, payload) =>
+    paymentService.updatePayment(payload as Parameters<typeof paymentService.updatePayment>[0]),
+  [IPC_CHANNELS.PAYMENTS_VOID]: async (_e, id) => paymentService.voidPayment(id as string),
 
   [IPC_CHANNELS.BUYERS_LIST]: async (_e, payload) =>
     buyerService.listBuyers(payload as Parameters<typeof buyerService.listBuyers>[0]),

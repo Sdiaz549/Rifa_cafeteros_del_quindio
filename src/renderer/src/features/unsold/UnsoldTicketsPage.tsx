@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { UnsoldBySellerSummary } from '@shared/types'
+import { TicketEditButton } from '../tickets/TicketEditModal'
 
 export function UnsoldTicketsPage() {
   const [query, setQuery] = useState('')
@@ -128,13 +129,21 @@ export function UnsoldTicketsPage() {
                   <div className="border-t border-line px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       {g.tickets.map((t) => (
-                        <Link
+                        <span
                           key={t.id}
-                          to={`/boletas/${t.number}`}
-                          className="rounded-lg border border-line bg-brand-50/40 px-2.5 py-1 text-sm font-medium text-brand-900 hover:bg-brand-100"
+                          className="inline-flex items-center gap-2 rounded-lg border border-line bg-brand-50/40 px-2.5 py-1 text-sm font-medium text-brand-900"
                         >
-                          {formatTicketNumber(t.number)}
-                        </Link>
+                          <Link to={`/boletas/${t.number}`} className="hover:underline">
+                            {formatTicketNumber(t.number)}
+                          </Link>
+                          <TicketEditButton
+                            ticketNumber={t.number}
+                            className="text-xs font-semibold text-brand-800"
+                            onChanged={() => void load(query, onlyWithSeller)}
+                          >
+                            Editar
+                          </TicketEditButton>
+                        </span>
                       ))}
                     </div>
                     {g.tickets.length > 0 && (

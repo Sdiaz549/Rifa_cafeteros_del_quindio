@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import { cn } from '../../lib/cn'
 import { AssignSellerForm } from './AssignSellerForm'
 import { SellTicketForm } from '../sales/SellTicketForm'
+import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
 
 const statusTone: Record<string, string> = {
   SIN_VENDER: 'ticket-sin-vender',
@@ -60,7 +61,7 @@ export function TicketDetailPage() {
 
   useEffect(() => {
     if (!ticket || params.get('asignar') !== '1') return
-    document.getElementById('asignar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById(`asignar-${ticket.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [ticket, params])
 
   async function onMarkLost() {
@@ -235,41 +236,11 @@ export function TicketDetailPage() {
             </Link>
           )}
         </div>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-brand-50 text-ink-muted">
-            <tr>
-              <th className="px-4 py-3 font-medium">#</th>
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 font-medium">Valor</th>
-              <th className="px-4 py-3 font-medium">Método</th>
-              <th className="px-4 py-3 font-medium">Usuario</th>
-              <th className="px-4 py-3 font-medium">Origen</th>
-              <th className="px-4 py-3 font-medium">Observación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-ink-muted">
-                  Sin movimientos registrados.
-                </td>
-              </tr>
-            )}
-            {payments.map((p) => (
-              <tr key={p.id} className="border-t border-line">
-                <td className="px-4 py-2.5">{p.sequence}</td>
-                <td className="px-4 py-2.5">{formatDateCo(p.paidAt)}</td>
-                <td className="px-4 py-2.5">{p.type}</td>
-                <td className="px-4 py-2.5 font-medium">{formatCop(p.amount)}</td>
-                <td className="px-4 py-2.5">{p.paymentMethodName}</td>
-                <td className="px-4 py-2.5">{p.userName}</td>
-                <td className="px-4 py-2.5">{p.origin}</td>
-                <td className="px-4 py-2.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <PaymentHistoryTable
+          payments={payments}
+          ticketNumber={ticket.number}
+          onChanged={() => void load(ticket.number)}
+        />
         <div className="flex flex-wrap justify-between gap-3 border-t border-line bg-brand-50/50 px-5 py-3 text-sm">
           <p>
             Total abonado:{' '}
@@ -284,7 +255,7 @@ export function TicketDetailPage() {
         </div>
       </section>
 
-      {ticket.status === 'SIN_VENDER' && can('tickets:sell') && (
+      {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
         <div className="app-card p-6">
           {showSale ? (
             <SellTicketForm
@@ -303,6 +274,7 @@ export function TicketDetailPage() {
               ticketNumber={ticket.number}
               currentSellerName={ticket.sellerName}
               defaultSellerId={ticket.sellerId}
+              skipAbonoPrompt={ticket.status !== 'SIN_VENDER'}
               onAssigned={() => void load(ticket.number)}
               onWantAbono={(sellerId) => {
                 setSaleSellerId(sellerId)

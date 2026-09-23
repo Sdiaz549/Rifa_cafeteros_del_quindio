@@ -316,7 +316,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
         throw new Error(`No existe la boleta ${input.ticketNumber}.`)
       }
       if (!canAssign(ticket.status)) {
-        throw new Error('Solo se pueden asignar boletas disponibles. Esta boleta ya fue vendida.')
+        throw new Error('No se puede cambiar el vendedor de una boleta perdida.')
       }
 
       let sellerId = input.sellerId

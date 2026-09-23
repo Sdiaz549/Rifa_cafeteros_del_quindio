@@ -7,6 +7,7 @@ import { formatDateTimeCo } from '@shared/dates'
 import { ticketStatusLabel } from '@shared/domain/ticketStatus'
 import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { SettlementSummary, TicketSummary } from '@shared/types'
+import { TicketEditButton } from '../tickets/TicketEditModal'
 
 type Tab = 'pendientes' | 'historial'
 
@@ -177,6 +178,7 @@ export function SettlementsPage() {
                     <th className="px-4 py-3">Pagado</th>
                     <th className="px-4 py-3">A liquidar</th>
                     <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,6 +204,14 @@ export function SettlementsPage() {
                       <td className="px-4 py-3">{formatCop(t.totalPaid)}</td>
                       <td className="px-4 py-3 font-medium">{formatCop(SETTLEMENT_AMOUNT_PER_TICKET)}</td>
                       <td className="px-4 py-3">{ticketStatusLabel(t.status)}</td>
+                      <td className="px-4 py-3">
+                        <TicketEditButton
+                          ticketNumber={t.number}
+                          onChanged={() => void loadPending(query)}
+                        >
+                          Editar
+                        </TicketEditButton>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -249,6 +259,7 @@ export function SettlementsPage() {
                   <th className="px-4 py-3">Valor</th>
                   <th className="px-4 py-3">Usuario</th>
                   <th className="px-4 py-3">Notas</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -264,6 +275,14 @@ export function SettlementsPage() {
                     <td className="px-4 py-3">{formatCop(s.amount)}</td>
                     <td className="px-4 py-3">{s.userName}</td>
                     <td className="px-4 py-3 text-ink-muted">{s.notes ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <TicketEditButton
+                        ticketNumber={s.ticketNumber}
+                        onChanged={() => void loadHistory(query)}
+                      >
+                        Editar
+                      </TicketEditButton>
+                    </td>
                   </tr>
                 ))}
               </tbody>
