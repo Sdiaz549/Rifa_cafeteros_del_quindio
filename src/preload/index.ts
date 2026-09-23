@@ -12,6 +12,7 @@ import type {
   CreatePaymentInput,
   CreateSaleInput,
   CreateSettlementInput,
+  UpdatePaymentInput,
   DashboardBackupCard,
   DashboardSnapshot,
   GoogleDriveStatus,
@@ -87,7 +88,13 @@ const api = {
     ): Promise<ApiResult<{ ticket: TicketSummary; payment: PaymentSummary }>> =>
       ipcRenderer.invoke('payments:create', payload),
     listByTicket: (ticketNumber: number): Promise<ApiResult<PaymentSummary[]>> =>
-      ipcRenderer.invoke('payments:listByTicket', ticketNumber)
+      ipcRenderer.invoke('payments:listByTicket', ticketNumber),
+    update: (
+      payload: UpdatePaymentInput
+    ): Promise<ApiResult<{ ticket: TicketSummary; payment: PaymentSummary }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_UPDATE, payload),
+    void: (id: string): Promise<ApiResult<{ ticket: TicketSummary; payment: PaymentSummary }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_VOID, id)
   },
   buyers: {
     list: (payload?: { query?: string; take?: number }): Promise<ApiResult<BuyerSummary[]>> =>

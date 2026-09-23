@@ -10,6 +10,7 @@ function mapIncome(p: {
   paidAt: Date
   origin: IncomeSummary['origin']
   notes: string | null
+  paymentMethodId: string
   paymentMethod: { name: string }
   user: { fullName: string }
   ticket: {
@@ -24,6 +25,7 @@ function mapIncome(p: {
     type: p.type,
     amount: p.amount,
     paidAt: p.paidAt.toISOString(),
+    paymentMethodId: p.paymentMethodId,
     paymentMethodName: p.paymentMethod.name,
     sellerName: p.ticket.seller?.fullName ?? null,
     buyerName: p.ticket.buyer?.fullName ?? null,

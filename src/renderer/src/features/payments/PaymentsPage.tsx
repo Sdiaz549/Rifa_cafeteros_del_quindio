@@ -6,6 +6,9 @@ import { formatCop, parseCopInput, formatCopInputValue } from '@shared/money'
 import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { inputDateToIso, todayInputDate } from '@shared/dates'
 import type { PaymentMethodSummary, PaymentSummary, SellerSummary, TicketSummary } from '@shared/types'
+import { useAuth } from '../auth/AuthContext'
+import { AssignSellerForm } from '../tickets/AssignSellerForm'
+import { PaymentHistoryTable } from './PaymentHistoryTable'
 
 function paddedTicketInput(raw: string): string {
   const n = parseTicketNumber(raw)
@@ -22,6 +25,7 @@ const statusLabel: Record<string, string> = {
 export function PaymentsPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [ticketNumber, setTicketNumber] = useState(() => paddedTicketInput(params.get('boleta') ?? ''))
   const [ticket, setTicket] = useState<TicketSummary | null>(null)
   const [history, setHistory] = useState<PaymentSummary[]>([])
@@ -256,6 +260,18 @@ export function PaymentsPage() {
             </div>
           </div>
 
+          {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+            <div className="rounded-2xl border border-line bg-white p-5">
+              <AssignSellerForm
+                ticketNumber={ticket.number}
+                currentSellerName={ticket.sellerName}
+                defaultSellerId={ticket.sellerId}
+                skipAbonoPrompt
+                onAssigned={() => void loadTicket(String(ticket.number))}
+              />
+            </div>
+          )}
+
           {canPay ? (
             <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-line bg-white p-5">
               {!ticket.sellerId && (
@@ -382,33 +398,16 @@ export function PaymentsPage() {
             </p>
           )}
 
-          {history.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
               <p className="border-b border-line px-5 py-3 text-sm font-semibold text-brand-900">
                 Abonos de esta boleta
               </p>
-              <table className="w-full text-left text-sm">
-                <thead className="bg-brand-50 text-ink-muted">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">#</th>
-                    <th className="px-4 py-2 font-medium">Valor</th>
-                    <th className="px-4 py-2 font-medium">Método</th>
-                    <th className="px-4 py-2 font-medium">Observación</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((p) => (
-                    <tr key={p.id} className="border-t border-line">
-                      <td className="px-4 py-2.5">{p.sequence}</td>
-                      <td className="px-4 py-2.5 font-medium">{formatCop(p.amount)}</td>
-                      <td className="px-4 py-2.5">{p.paymentMethodName}</td>
-                      <td className="px-4 py-2.5 text-ink-muted">{p.notes?.trim() ? p.notes : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <PaymentHistoryTable
+                payments={history}
+                ticketNumber={ticket.number}
+                onChanged={() => void loadTicket(String(ticket.number))}
+              />
             </div>
-          )}
         </div>
       )}
     </div>

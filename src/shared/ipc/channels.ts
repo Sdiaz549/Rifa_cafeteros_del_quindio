@@ -20,6 +20,8 @@ export const IPC_CHANNELS = {
 
   PAYMENTS_CREATE: 'payments:create',
   PAYMENTS_LIST_BY_TICKET: 'payments:listByTicket',
+  PAYMENTS_UPDATE: 'payments:update',
+  PAYMENTS_VOID: 'payments:void',
 
   BUYERS_LIST: 'buyers:list',
   BUYERS_UPSERT: 'buyers:upsert',

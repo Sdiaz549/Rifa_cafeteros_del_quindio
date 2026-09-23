@@ -19,12 +19,16 @@ function mapTickets(
     status: BuyerTicketSummary['status']
     totalPaid: number
     balanceDue: number
+    sellerId: string | null
+    seller: { fullName: string } | null
     payments: Array<{
       id: string
       amount: number
       paidAt: Date
       type: string
       notes: string | null
+      status: 'ACTIVO' | 'ANULADO'
+      paymentMethodId: string
       paymentMethod: { name: string }
     }>
   }>
@@ -34,13 +38,17 @@ function mapTickets(
     status: t.status,
     totalPaid: t.totalPaid,
     balanceDue: t.balanceDue,
+    sellerId: t.sellerId,
+    sellerName: t.seller?.fullName ?? null,
     payments: t.payments.map((p) => ({
       id: p.id,
       amount: p.amount,
       paidAt: p.paidAt.toISOString(),
       type: p.type,
+      paymentMethodId: p.paymentMethodId,
       paymentMethodName: p.paymentMethod.name,
-      notes: p.notes
+      notes: p.notes,
+      status: p.status
     }))
   }))
 }
@@ -59,12 +67,16 @@ function mapBuyer(b: {
     status: BuyerTicketSummary['status']
     totalPaid: number
     balanceDue: number
+    sellerId: string | null
+    seller: { fullName: string } | null
     payments: Array<{
       id: string
       amount: number
       paidAt: Date
       type: string
       notes: string | null
+      status: 'ACTIVO' | 'ANULADO'
+      paymentMethodId: string
       paymentMethod: { name: string }
     }>
   }>
@@ -116,6 +128,8 @@ export async function listBuyers(input?: {
             status: true,
             totalPaid: true,
             balanceDue: true,
+            sellerId: true,
+            seller: { select: { fullName: true } },
             payments: {
               where: { status: 'ACTIVO' },
               orderBy: { sequence: 'asc' },
@@ -125,6 +139,8 @@ export async function listBuyers(input?: {
                 paidAt: true,
                 type: true,
                 notes: true,
+                status: true,
+                paymentMethodId: true,
                 paymentMethod: { select: { name: true } }
               }
             }

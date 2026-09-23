@@ -378,7 +378,9 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
           ticketNumber: p.ticket.number,
           buyerName: p.ticket.buyer?.fullName ?? '—',
           amount: p.amount,
-          paymentMethodName: p.paymentMethod.name
+          paymentMethodId: p.paymentMethodId,
+          paymentMethodName: p.paymentMethod.name,
+          notes: p.notes
         }))
       }
     }
