@@ -15,8 +15,9 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   id: z.string().min(1),
+  username: z.string().trim().min(3, 'El usuario debe tener al menos 3 caracteres.').optional(),
   fullName: z.string().trim().min(3).optional(),
-  password: z.string().min(8).optional().or(z.literal('')),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.').optional().or(z.literal('')),
   role: z.enum(['ADMIN', 'USER']).optional(),
   isActive: z.boolean().optional()
 })
@@ -113,6 +114,14 @@ export async function updateUser(raw: unknown): Promise<ApiResult<UserSummary>> 
     })
     if (!existing) return { ok: false, error: 'Usuario no encontrado.' }
 
+    const nextUsername = parsed.data.username?.trim()
+    if (nextUsername && nextUsername !== existing.username) {
+      const taken = await prisma.user.findUnique({ where: { username: nextUsername } })
+      if (taken) {
+        return { ok: false, error: 'Ya existe un usuario con ese nombre.' }
+      }
+    }
+
     if (parsed.data.isActive === false) {
       if (existing.id === session.userId) {
         return { ok: false, error: 'No puede desactivar su propio usuario.' }
@@ -145,6 +154,7 @@ export async function updateUser(raw: unknown): Promise<ApiResult<UserSummary>> 
     const user = await prisma.user.update({
       where: { id: existing.id },
       data: {
+        username: nextUsername || existing.username,
         fullName: parsed.data.fullName ?? existing.fullName,
         roleId,
         isActive: parsed.data.isActive ?? existing.isActive,
@@ -159,8 +169,19 @@ export async function updateUser(raw: unknown): Promise<ApiResult<UserSummary>> 
       action: 'USUARIO_ACTUALIZADO',
       entity: 'User',
       entityId: user.id,
-      previousValue: { fullName: existing.fullName, role: existing.role.code, isActive: existing.isActive },
-      newValue: { fullName: user.fullName, role: user.role.code, isActive: user.isActive }
+      previousValue: {
+        username: existing.username,
+        fullName: existing.fullName,
+        role: existing.role.code,
+        isActive: existing.isActive
+      },
+      newValue: {
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role.code,
+        isActive: user.isActive,
+        passwordChanged: Boolean(passwordHash)
+      }
     })
 
     return { ok: true, data: mapUser(user) }

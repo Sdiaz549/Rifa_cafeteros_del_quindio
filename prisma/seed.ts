@@ -2,7 +2,6 @@ import {
   PrismaClient,
   RoleCode,
   TicketStatus,
-  SellerStatus,
   PaymentMethodStatus
 } from '@prisma/client'
 import bcrypt from 'bcryptjs'
@@ -96,38 +95,6 @@ async function main() {
       where: { key },
       update: { value, updatedByUserId: admin.id },
       create: { key, value, updatedByUserId: admin.id }
-    })
-  }
-
-  const sellerNames = [
-    'Yolanda Muñoz',
-    'Carlos Ramírez',
-    'María López',
-    'José Herrera',
-    'Ana Gómez',
-    'Pedro Sánchez',
-    'Laura Martínez',
-    'Diego Torres',
-    'Sofía Vargas',
-    'Andrés Ruiz'
-  ]
-
-  for (let i = 0; i < sellerNames.length; i++) {
-    const documentId = `10000000${i}`
-    await prisma.seller.upsert({
-      where: { documentId },
-      update: {
-        fullName: sellerNames[i],
-        phone: `30010000${i}`,
-        status: SellerStatus.ACTIVO
-      },
-      create: {
-        fullName: sellerNames[i],
-        documentId,
-        phone: `30010000${i}`,
-        address: `Calle ${i + 1} # ${i}-10`,
-        status: SellerStatus.ACTIVO
-      }
     })
   }
 

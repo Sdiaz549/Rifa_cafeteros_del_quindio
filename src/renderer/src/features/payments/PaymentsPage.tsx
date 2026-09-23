@@ -34,7 +34,7 @@ export function PaymentsPage() {
     phone: '',
     address: ''
   })
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState('0')
   const [paymentMethodId, setPaymentMethodId] = useState('')
   const [paidAt, setPaidAt] = useState(todayInputDate)
   const [notes, setNotes] = useState('')
@@ -89,7 +89,7 @@ export function PaymentsPage() {
     setHistory(paymentsRes.ok ? paymentsRes.data : [])
     setSellerId(next.sellerId ?? '')
     resetBuyer()
-    setAmount('')
+    setAmount('0')
     setPaidAt(todayInputDate())
     setNotes('')
   }
@@ -182,7 +182,7 @@ export function PaymentsPage() {
       return
     }
     toast.success('Abono registrado correctamente.')
-    setAmount('')
+    setAmount('0')
     setPaidAt(todayInputDate())
     setNotes('')
     setTicket(res.data.ticket)
@@ -323,7 +323,7 @@ export function PaymentsPage() {
                     className="w-full rounded-xl border border-line px-3 py-2.5"
                     value={amount}
                     onChange={(e) => setAmount(formatCopInputValue(e.target.value))}
-                    placeholder="20,000"
+                    placeholder="0"
                     inputMode="numeric"
                   />
                 </label>

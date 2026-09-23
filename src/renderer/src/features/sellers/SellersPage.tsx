@@ -9,6 +9,7 @@ import type { SellerSummary, SellerTicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
 
 const emptyForm = {
+  id: '',
   fullName: '',
   documentId: '',
   phone: '',
@@ -50,11 +51,13 @@ export function SellersPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    const creating = !form.id
     setSaving(true)
     const res = await window.api.sellers.upsert({
+      id: form.id || undefined,
       fullName: form.fullName.trim(),
-      documentId: form.documentId.trim(),
-      phone: form.phone.trim(),
+      documentId: form.documentId.trim() || undefined,
+      phone: form.phone.trim() || undefined,
       address: form.address.trim() || null,
       status: form.status,
       notes: form.notes.trim() || null
@@ -64,20 +67,17 @@ export function SellersPage() {
       toast.error(res.error)
       return
     }
-    toast.success('Vendedor guardado')
-    setForm({
-      fullName: res.data.fullName,
-      documentId: res.data.documentId,
-      phone: res.data.phone,
-      address: res.data.address ?? '',
-      status: res.data.status,
-      notes: res.data.notes ?? ''
-    })
-    await openSeller(res.data.id)
+    toast.success(creating ? 'Vendedor creado' : 'Vendedor actualizado')
+    if (creating) {
+      setForm(emptyForm)
+      await showSeller(res.data.id, false)
+    } else {
+      await showSeller(res.data.id, true)
+    }
     await load(query)
   }
 
-  async function openSeller(id: string) {
+  async function showSeller(id: string, fillForm: boolean) {
     const res = await window.api.sellers.getById(id)
     if (!res.ok) {
       toast.error(res.error)
@@ -88,14 +88,20 @@ export function SellersPage() {
     setSellerTickets(tickets)
     setSelecting(false)
     setSelectedNumbers([])
+    if (!fillForm) return
     setForm({
+      id: res.data.id,
       fullName: res.data.fullName,
-      documentId: res.data.documentId,
+      documentId: res.data.documentId?.startsWith('SC-') ? '' : res.data.documentId,
       phone: res.data.phone,
       address: res.data.address ?? '',
       status: res.data.status,
       notes: res.data.notes ?? ''
     })
+  }
+
+  async function openSeller(id: string) {
+    await showSeller(id, true)
   }
 
   const tickets = sellerTickets
@@ -217,7 +223,9 @@ export function SellersPage() {
 
       <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,0.85fr)_minmax(0,1.35fr)]">
         <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-line bg-white p-5">
-          <h2 className="font-semibold text-brand-900">Nuevo / actualizar</h2>
+          <h2 className="font-semibold text-brand-900">
+            {form.id ? 'Actualizar vendedor' : 'Nuevo vendedor'}
+          </h2>
           <input
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
             placeholder="Nombre"
@@ -227,17 +235,15 @@ export function SellersPage() {
           />
           <input
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Cédula"
+            placeholder="Cédula (opcional)"
             value={form.documentId}
             onChange={(e) => setForm((s) => ({ ...s, documentId: e.target.value }))}
-            required
           />
           <input
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
-            placeholder="Teléfono"
+            placeholder="Teléfono (opcional)"
             value={form.phone}
             onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
-            required
           />
           <input
             className="w-full rounded-xl border border-line px-3 py-2 text-sm"
@@ -266,8 +272,17 @@ export function SellersPage() {
             disabled={saving}
             className="w-full rounded-xl bg-brand-800 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {saving ? 'Guardando…' : 'Guardar vendedor'}
+            {saving ? 'Guardando…' : form.id ? 'Guardar cambios' : 'Guardar vendedor'}
           </button>
+          {form.id ? (
+            <button
+              type="button"
+              className="w-full rounded-xl border border-line py-2 text-sm font-medium text-brand-900"
+              onClick={() => setForm(emptyForm)}
+            >
+              Nuevo vendedor
+            </button>
+          ) : null}
         </form>
 
         <div className="space-y-3">
