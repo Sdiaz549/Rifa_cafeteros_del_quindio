@@ -29,6 +29,8 @@ export async function configureSqlite(): Promise<void> {
   await db.$queryRawUnsafe('PRAGMA mmap_size=268435456')
   await db.$queryRawUnsafe('PRAGMA busy_timeout=5000')
   await db.$queryRawUnsafe('PRAGMA foreign_keys=ON')
+  await db.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE)')
+  await db.$queryRawUnsafe('PRAGMA optimize')
   logInfo('sqlite.pragmas.ok', { journal: 'WAL', cacheMb: 64 })
 }
 

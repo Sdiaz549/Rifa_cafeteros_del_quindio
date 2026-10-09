@@ -31,6 +31,7 @@ export function AssignSellerForm({
     address: ''
   })
   const [submitting, setSubmitting] = useState(false)
+  const [unassigning, setUnassigning] = useState(false)
   const [askAbono, setAskAbono] = useState(false)
   const [assignedSellerId, setAssignedSellerId] = useState('')
 
@@ -96,6 +97,25 @@ export function AssignSellerForm({
     onAssigned?.()
   }
 
+  async function onUnassign() {
+    if (
+      !window.confirm(
+        `¿Quitar el vendedor de la boleta ${formatTicketNumber(ticketNumber)}? Quedará sin vendedor asignado.`
+      )
+    ) {
+      return
+    }
+    setUnassigning(true)
+    const res = await window.api.tickets.unassign(ticketNumber)
+    setUnassigning(false)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success(`Boleta ${formatTicketNumber(ticketNumber)} sin vendedor`)
+    onAssigned?.()
+  }
+
   if (askAbono) {
     return (
       <div className="space-y-4">
@@ -131,8 +151,8 @@ export function AssignSellerForm({
         <p className="text-sm text-ink-muted">
           Boleta {formatTicketNumber(ticketNumber)}.
           {skipAbonoPrompt
-            ? ' Puede cambiar el vendedor de esta boleta.'
-            : ' Queda en el vendedor y sigue disponible; no se marca como vendida ni pide comprador.'}
+            ? ' Puede cambiar el vendedor de esta boleta o quitarlo para dejarla sin asignar.'
+            : ' Queda en el vendedor y sigue disponible; no se marca como vendida ni pide comprador. También puede quitar el vendedor.'}
         </p>
         {currentSellerName && (
           <p className="mt-2 text-sm">
@@ -212,9 +232,21 @@ export function AssignSellerForm({
         </div>
       )}
 
-      <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-60">
-        {submitting ? 'Guardando…' : currentSellerName ? 'Guardar vendedor' : 'Asignar a un vendedor'}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={submitting || unassigning} className="btn-primary disabled:opacity-60">
+          {submitting ? 'Guardando…' : currentSellerName ? 'Guardar vendedor' : 'Asignar a un vendedor'}
+        </button>
+        {currentSellerName ? (
+          <button
+            type="button"
+            disabled={submitting || unassigning}
+            className="btn-ghost text-accent-red disabled:opacity-60"
+            onClick={() => void onUnassign()}
+          >
+            {unassigning ? 'Quitando…' : 'Quitar vendedor'}
+          </button>
+        ) : null}
+      </div>
     </form>
   )
 }

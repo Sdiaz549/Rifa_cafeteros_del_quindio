@@ -53,6 +53,7 @@ describe('ticket board packing', () => {
     expect(boardIndexForQuery(0, 10_000, '9999')).toBe(9999)
     expect(boardIndexForQuery(0, 10_000, '10000')).toBe(null)
     expect(boardIndexForQuery(0, 10_000, '')).toBe(null)
+    expect(boardIndexForQuery(0, 10_000, 'juan')).toBe(null)
   })
 })
 
@@ -110,17 +111,43 @@ describe('ticket financials', () => {
     expect(result.status).toBe('PERDIDA')
   })
 
+  it('keeps DAÑADA terminal', () => {
+    const result = recalcTicketFinancials({
+      totalAmount: 50000,
+      totalPaidActive: 10000,
+      currentStatus: 'DAÑADA'
+    })
+    expect(result.status).toBe('DAÑADA')
+  })
+
+  it('packs DAÑADA separately from PERDIDA', () => {
+    const damaged = packTicketCell('DAÑADA', false)
+    expect(unpackTicketCell(damaged)).toEqual({ status: 'DAÑADA', isSettled: false })
+    const stats = boardStatsFromPacked([
+      packTicketCell('PERDIDA', false),
+      packTicketCell('DAÑADA', false),
+      packTicketCell('SIN_VENDER', false)
+    ])
+    expect(stats.perdida).toBe(1)
+    expect(stats.danada).toBe(1)
+    expect(stats.disponible).toBe(1)
+  })
+
   it('gates sell/pay/settle/assign correctly', () => {
     expect(canSell('SIN_VENDER')).toBe(true)
     expect(canSell('EN_ABONOS')).toBe(false)
+    expect(canSell('DAÑADA')).toBe(false)
     expect(canAssign('SIN_VENDER')).toBe(true)
     expect(canAssign('EN_ABONOS')).toBe(true)
     expect(canAssign('CANCELADA')).toBe(true)
     expect(canAssign('PERDIDA')).toBe(false)
+    expect(canAssign('DAÑADA')).toBe(false)
     expect(canAcceptPayment('EN_ABONOS')).toBe(true)
     expect(canAcceptPayment('CANCELADA')).toBe(false)
+    expect(canAcceptPayment('DAÑADA')).toBe(false)
     expect(canSettle('CANCELADA', false)).toBe(true)
     expect(canSettle('CANCELADA', true)).toBe(false)
+    expect(canSettle('DAÑADA', false)).toBe(false)
   })
 })
 

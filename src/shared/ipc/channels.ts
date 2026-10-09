@@ -13,7 +13,9 @@ export const IPC_CHANNELS = {
   TICKETS_GET_BY_NUMBER: 'tickets:getByNumber',
   TICKETS_STATS: 'tickets:stats',
   TICKETS_MARK_LOST: 'tickets:markLost',
+  TICKETS_MARK_DAMAGED: 'tickets:markDamaged',
   TICKETS_ASSIGN: 'tickets:assign',
+  TICKETS_UNASSIGN: 'tickets:unassign',
   TICKETS_SET_BUYER: 'tickets:setBuyer',
 
   SALES_CREATE: 'sales:create',
@@ -29,6 +31,7 @@ export const IPC_CHANNELS = {
   SELLERS_LIST: 'sellers:list',
   SELLERS_UPSERT: 'sellers:upsert',
   SELLERS_GET_BY_ID: 'sellers:getById',
+  SELLERS_DELETE: 'sellers:delete',
   SELLERS_EXPORT_TICKETS_WORD: 'sellers:exportTicketsWord',
   SELLERS_EXPORT_PAYMENTS_WORD: 'sellers:exportPaymentsWord',
 

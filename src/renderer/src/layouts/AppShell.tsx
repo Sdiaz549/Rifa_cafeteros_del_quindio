@@ -449,7 +449,7 @@ export function AppShell() {
           </div>
         )}
 
-        <main className="min-h-0 flex-1 overflow-auto p-5 md:p-7">
+        <main className="min-h-0 flex-1 overflow-auto p-5 md:p-7 [scrollbar-gutter:stable]">
           <Outlet />
         </main>
 

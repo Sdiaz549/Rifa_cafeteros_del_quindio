@@ -62,7 +62,9 @@ const api = {
     getByNumber: (number: number) => ipcRenderer.invoke('tickets:getByNumber', number),
     stats: () => ipcRenderer.invoke('tickets:stats'),
     markLost: (number: number): Promise<ApiResult<TicketSummary>> =>
-      ipcRenderer.invoke('tickets:markLost', number),
+      ipcRenderer.invoke(IPC_CHANNELS.TICKETS_MARK_LOST, number),
+    markDamaged: (number: number): Promise<ApiResult<TicketSummary>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TICKETS_MARK_DAMAGED, number),
     assign: (payload: {
       ticketNumber: number
       sellerId?: string
@@ -73,6 +75,8 @@ const api = {
         address?: string
       }
     }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke(IPC_CHANNELS.TICKETS_ASSIGN, payload),
+    unassign: (ticketNumber: number): Promise<ApiResult<TicketSummary>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TICKETS_UNASSIGN, ticketNumber),
     setBuyer: (payload: {
       ticketNumber: number
       fullName: string
@@ -125,6 +129,8 @@ const api = {
     }): Promise<ApiResult<SellerSummary>> => ipcRenderer.invoke('sellers:upsert', payload),
     getById: (id: string): Promise<ApiResult<SellerSummary>> =>
       ipcRenderer.invoke('sellers:getById', id),
+    delete: (id: string): Promise<ApiResult<{ id: string }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.SELLERS_DELETE, id),
     exportTicketsWord: (id: string): Promise<ApiResult<{ filePath: string }>> =>
       ipcRenderer.invoke(IPC_CHANNELS.SELLERS_EXPORT_TICKETS_WORD, id),
     exportPaymentsWord: (id: string): Promise<ApiResult<{ filePath: string }>> =>

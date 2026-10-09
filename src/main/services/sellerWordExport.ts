@@ -39,9 +39,9 @@ export async function exportSellerTicketsWord(
     const prisma = getPrisma()
     const seller = await prisma.seller.findUnique({
       where: { id: sellerId },
-      select: { id: true, fullName: true }
+      select: { id: true, fullName: true, deletedAt: true }
     })
-    if (!seller) {
+    if (!seller || seller.deletedAt) {
       return { ok: false, error: 'Vendedor no encontrado.' }
     }
     const tickets = await prisma.ticket.findMany({
@@ -74,9 +74,9 @@ export async function exportSellerPaymentsWord(
     const prisma = getPrisma()
     const seller = await prisma.seller.findUnique({
       where: { id: sellerId },
-      select: { id: true, fullName: true }
+      select: { id: true, fullName: true, deletedAt: true }
     })
-    if (!seller) {
+    if (!seller || seller.deletedAt) {
       return { ok: false, error: 'Vendedor no encontrado.' }
     }
     const tickets = await prisma.ticket.findMany({

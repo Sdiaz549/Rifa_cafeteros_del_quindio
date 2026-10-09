@@ -1,6 +1,6 @@
 import type { RoleCode } from '../permissions'
 
-export type TicketStatus = 'SIN_VENDER' | 'EN_ABONOS' | 'CANCELADA' | 'PERDIDA'
+export type TicketStatus = 'SIN_VENDER' | 'EN_ABONOS' | 'CANCELADA' | 'PERDIDA' | 'DAÑADA'
 export type SellerStatus = 'ACTIVO' | 'INACTIVO'
 export type PaymentMethodStatus = 'ACTIVO' | 'INACTIVO'
 export type PaymentType = 'VENTA_INICIAL' | 'ABONO'
@@ -30,7 +30,7 @@ export interface TicketSummary {
   soldAt: string | null
 }
 
-/** Tablero compacto: packed[i] = boleta (first + i). 2 bits estado + 1 bit liquidada. */
+/** Tablero compacto: packed[i] = boleta (first + i). 3 bits estado + 1 bit liquidada. */
 export interface TicketBoardSnapshot {
   first: number
   packed: number[]
@@ -434,6 +434,7 @@ export interface HomeTicketStats {
   enAbonos: number
   cancelada: number
   perdida: number
+  danada: number
   liquidadas: number
 }
 
@@ -481,6 +482,7 @@ export interface DashboardSnapshot {
   enAbonos: number
   cancelada: number
   perdida: number
+  danada: number
   liquidadas: number
   pendienteLiquidacion: number
   sellerCount: number

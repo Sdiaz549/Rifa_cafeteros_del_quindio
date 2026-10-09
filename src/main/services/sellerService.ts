@@ -155,6 +155,7 @@ export async function listSellers(input?: {
     const q = input?.query?.trim()
     const sellers = await prisma.seller.findMany({
         where: {
+          deletedAt: null,
           ...(input?.onlyActive ? { status: 'ACTIVO' } : {}),
           ...(q
             ? {
@@ -194,8 +195,11 @@ export async function upsertSeller(raw: unknown): Promise<ApiResult<SellerSummar
     const existing = data.id
       ? await prisma.seller.findUnique({ where: { id: data.id } })
       : documentId
-        ? await prisma.seller.findUnique({ where: { documentId } })
+        ? await prisma.seller.findFirst({ where: { documentId, deletedAt: null } })
         : null
+    if (existing?.deletedAt) {
+      return { ok: false, error: 'Vendedor no encontrado.' }
+    }
     const seller = existing
       ? await prisma.seller.update({
           where: { id: existing.id },
@@ -269,7 +273,7 @@ export async function getSellerById(id: string): Promise<ApiResult<SellerSummary
     assertPermission(session.role, 'sellers:manage')
     const prisma = getPrisma()
     const seller = await prisma.seller.findUnique({ where: { id } })
-    if (!seller) {
+    if (!seller || seller.deletedAt) {
       return { ok: false, error: 'Vendedor no encontrado.' }
     }
     const tickets = await prisma.ticket.findMany({
@@ -287,5 +291,56 @@ export async function getSellerById(id: string): Promise<ApiResult<SellerSummary
     return { ok: true, data: mapSeller({ ...seller, tickets }) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al consultar vendedor' }
+  }
+}
+
+export async function deleteSeller(id: string): Promise<ApiResult<{ id: string }>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'sellers:manage')
+    if (!id) return { ok: false, error: 'Vendedor inválido.' }
+
+    const prisma = getPrisma()
+    const seller = await prisma.seller.findUnique({ where: { id } })
+    if (!seller || seller.deletedAt) {
+      return { ok: false, error: 'Vendedor no encontrado.' }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.ticket.updateMany({
+        where: { sellerId: id },
+        data: { sellerId: null }
+      })
+      await tx.ticketAssignment.updateMany({
+        where: { sellerId: id, endedAt: null },
+        data: { endedAt: new Date() }
+      })
+      await tx.seller.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          status: 'INACTIVO',
+          documentId: `${seller.documentId}#DEL#${Date.now()}`
+        }
+      })
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          module: 'VENDEDORES',
+          action: 'VENDEDOR_ELIMINADO',
+          entity: 'Seller',
+          entityId: id,
+          previousValue: JSON.stringify({
+            fullName: seller.fullName,
+            documentId: seller.documentId
+          }),
+          origin: 'MANUAL'
+        }
+      })
+    })
+
+    return { ok: true, data: { id } }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al eliminar vendedor' }
   }
 }

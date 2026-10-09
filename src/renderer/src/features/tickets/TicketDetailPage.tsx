@@ -10,12 +10,15 @@ import { cn } from '../../lib/cn'
 import { AssignSellerForm } from './AssignSellerForm'
 import { SellTicketForm } from '../sales/SellTicketForm'
 import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
+import { MarkUnusableButtons } from './MarkUnusableButtons'
+import { isUnusableTicket } from '@shared/domain/ticketStatus'
 
 const statusTone: Record<string, string> = {
   SIN_VENDER: 'ticket-sin-vender',
   EN_ABONOS: 'ticket-en-abonos',
   CANCELADA: 'ticket-cancelada',
-  PERDIDA: 'ticket-perdida'
+  PERDIDA: 'ticket-perdida',
+  DAÑADA: 'ticket-danada'
 }
 
 export function TicketDetailPage() {
@@ -25,7 +28,6 @@ export function TicketDetailPage() {
   const [ticket, setTicket] = useState<(TicketSummary & { statusLabel?: string }) | null>(null)
   const [payments, setPayments] = useState<PaymentSummary[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [markingLost, setMarkingLost] = useState(false)
   const [showSale, setShowSale] = useState(false)
   const [saleSellerId, setSaleSellerId] = useState<string | null>(null)
   const [buyerName, setBuyerName] = useState('')
@@ -63,22 +65,6 @@ export function TicketDetailPage() {
     if (!ticket || params.get('asignar') !== '1') return
     document.getElementById(`asignar-${ticket.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [ticket, params])
-
-  async function onMarkLost() {
-    if (!ticket) return
-    if (!window.confirm(`¿Marcar la boleta ${String(ticket.number).padStart(4, '0')} como PERDIDA?`)) {
-      return
-    }
-    setMarkingLost(true)
-    const res = await window.api.tickets.markLost(ticket.number)
-    setMarkingLost(false)
-    if (!res.ok) {
-      toast.error(res.error)
-      return
-    }
-    toast.success('Boleta marcada como perdida')
-    setTicket({ ...res.data, statusLabel: 'Perdida' })
-  }
 
   async function onSaveBuyer(e: FormEvent) {
     e.preventDefault()
@@ -219,7 +205,9 @@ export function TicketDetailPage() {
                   ? 'Boleta disponible. Puede asignarla a un vendedor sin marcarla vendida.'
                   : ticket.status === 'CANCELADA'
                     ? 'Boleta cancelada / pagada en su totalidad.'
-                    : 'Boleta marcada como perdida.'}
+                    : ticket.status === 'DAÑADA'
+                      ? 'Boleta marcada como dañada.'
+                      : 'Boleta marcada como perdida.'}
             </p>
             <p className="mt-4 text-xs uppercase tracking-wide opacity-70">Saldo</p>
             <p className="font-display text-2xl font-bold">{formatCop(ticketBalance)}</p>
@@ -255,7 +243,7 @@ export function TicketDetailPage() {
         </div>
       </section>
 
-      {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+      {!isUnusableTicket(ticket.status) && can('tickets:sell') && (
         <div className="app-card p-6">
           {showSale ? (
             <SellTicketForm
@@ -297,18 +285,11 @@ export function TicketDetailPage() {
             Liquidar boleta
           </Link>
         )}
-        {can('tickets:mark_lost') &&
-          ticket.status !== 'PERDIDA' &&
-          ticket.status !== 'SIN_VENDER' && (
-            <button
-              type="button"
-              disabled={markingLost}
-              onClick={() => void onMarkLost()}
-              className="btn-danger disabled:opacity-60"
-            >
-              {markingLost ? 'Marcando…' : 'Anular / marcar perdida'}
-            </button>
-          )}
+        <MarkUnusableButtons
+          ticketNumber={ticket.number}
+          status={ticket.status}
+          onDone={() => void load(ticket.number)}
+        />
         <Link to="/boletas" className="btn-ghost">
           Regresar
         </Link>

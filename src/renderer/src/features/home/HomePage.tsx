@@ -40,6 +40,7 @@ import { BackupStatusCard } from '../../components/BackupStatusCard'
 const PIE_COLORS: Record<string, string> = {
   'Sin vender': '#c5cdc9',
   'En abonos': '#f0c14b',
+  Dañadas: '#c45c26',
   Canceladas: '#2e7d32',
   Perdidas: '#e53935'
 }
@@ -48,14 +49,16 @@ const STATUS_PILL: Record<TicketStatus, string> = {
   SIN_VENDER: 'bg-[#e8ecea] text-[#5c6b64]',
   EN_ABONOS: 'bg-[#ffe082] text-[#5c4400]',
   CANCELADA: 'bg-[#c8f0c0] text-[#1b5e20]',
-  PERDIDA: 'bg-[#e53935] text-white'
+  PERDIDA: 'bg-[#e53935] text-white',
+  DAÑADA: 'bg-[#c45c26] text-white'
 }
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
-  PERDIDA: 'Perdida'
+  PERDIDA: 'Perdida',
+  DAÑADA: 'Dañada'
 }
 
 function pct(part: number, total: number): number {
@@ -193,7 +196,7 @@ export function HomePage() {
         <p className="text-sm text-dash-muted">Los totales financieros los ve el administrador. Aquí está el estado de las boletas.</p>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+      <section className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
         <TicketStat
           label="Total de boletas"
           value={t.total}
@@ -235,6 +238,13 @@ export function HomePage() {
           total={t.total}
           barClass="bg-[#e53935]"
           icon={<TicketX size={16} className="text-[#e53935]" />}
+        />
+        <TicketStat
+          label="Dañadas"
+          value={t.danada}
+          total={t.total}
+          barClass="bg-[#c45c26]"
+          icon={<TicketX size={16} className="text-[#c45c26]" />}
         />
         <TicketStat
           label="Liquidadas"
@@ -370,7 +380,7 @@ export function HomePage() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {row.status !== 'PERDIDA' && can('tickets:sell') && (
+                      {row.status !== 'PERDIDA' && row.status !== 'DAÑADA' && can('tickets:sell') && (
                         <TicketEditButton ticketNumber={row.ticketNumber} onChanged={() => void load()}>
                           Editar
                         </TicketEditButton>

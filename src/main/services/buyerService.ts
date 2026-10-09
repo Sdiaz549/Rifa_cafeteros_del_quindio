@@ -21,7 +21,7 @@ function mapTickets(
     balanceDue: number
     sellerId: string | null
     seller: { fullName: string } | null
-    payments: Array<{
+    payments?: Array<{
       id: string
       amount: number
       paidAt: Date
@@ -40,7 +40,7 @@ function mapTickets(
     balanceDue: t.balanceDue,
     sellerId: t.sellerId,
     sellerName: t.seller?.fullName ?? null,
-    payments: t.payments.map((p) => ({
+    payments: (t.payments ?? []).map((p) => ({
       id: p.id,
       amount: p.amount,
       paidAt: p.paidAt.toISOString(),
@@ -69,7 +69,7 @@ function mapBuyer(b: {
     balanceDue: number
     sellerId: string | null
     seller: { fullName: string } | null
-    payments: Array<{
+    payments?: Array<{
       id: string
       amount: number
       paidAt: Date
@@ -129,21 +129,7 @@ export async function listBuyers(input?: {
             totalPaid: true,
             balanceDue: true,
             sellerId: true,
-            seller: { select: { fullName: true } },
-            payments: {
-              where: { status: 'ACTIVO' },
-              orderBy: { sequence: 'asc' },
-              select: {
-                id: true,
-                amount: true,
-                paidAt: true,
-                type: true,
-                notes: true,
-                status: true,
-                paymentMethodId: true,
-                paymentMethod: { select: { name: true } }
-              }
-            }
+            seller: { select: { fullName: true } }
           }
         }
       },

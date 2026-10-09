@@ -3,7 +3,7 @@ import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import type { ApiResult, TicketBoardSnapshot, TicketSummary } from '../../shared/types'
-import { ticketStatusLabel, canAssign } from '../../shared/domain/ticketStatus'
+import { ticketStatusLabel, canAssign, isUnusableTicket } from '../../shared/domain/ticketStatus'
 import type { TicketStatus } from '../../shared/types'
 import { DEFAULT_TICKET_COUNT, SETTING_KEYS } from '../../shared/constants'
 import { ticketNumberBounds } from '../../shared/tickets/numbers'
@@ -36,6 +36,7 @@ export async function queryTicketCounts(): Promise<{
   enAbonos: number
   cancelada: number
   perdida: number
+  danada: number
   liquidadas: number
   pendLiq: number
   vendidas: number
@@ -48,6 +49,7 @@ export async function queryTicketCounts(): Promise<{
       SUM(CASE WHEN status = 'EN_ABONOS' THEN 1 ELSE 0 END) AS enAbonos,
       SUM(CASE WHEN status = 'CANCELADA' THEN 1 ELSE 0 END) AS cancelada,
       SUM(CASE WHEN status = 'PERDIDA' THEN 1 ELSE 0 END) AS perdida,
+      SUM(CASE WHEN status = 'DAÑADA' THEN 1 ELSE 0 END) AS danada,
       SUM(CASE WHEN isSettled = 1 THEN 1 ELSE 0 END) AS liquidadas,
       SUM(CASE WHEN status = 'CANCELADA' AND isSettled = 0 THEN 1 ELSE 0 END) AS pendLiq
     FROM "Ticket"
@@ -55,15 +57,18 @@ export async function queryTicketCounts(): Promise<{
   const row = rows[0] ?? {}
   const total = n(row.total)
   const disponible = n(row.disponible)
+  const perdida = n(row.perdida)
+  const danada = n(row.danada)
   return {
     total,
     disponible,
     enAbonos: n(row.enAbonos),
     cancelada: n(row.cancelada),
-    perdida: n(row.perdida),
+    perdida,
+    danada,
     liquidadas: n(row.liquidadas),
     pendLiq: n(row.pendLiq),
-    vendidas: total - disponible
+    vendidas: total - disponible - perdida - danada
   }
 }
 
@@ -120,13 +125,16 @@ export async function listTickets(input?: {
     if (input?.sellerId) where.sellerId = input.sellerId
     if (q) {
       const asNumber = Number(q)
-      where.OR = [
-        ...(!Number.isNaN(asNumber) ? [{ number: asNumber }] : []),
-        { buyer: { fullName: { contains: q } } },
-        { buyer: { documentId: { contains: q } } },
-        { buyer: { phone: { contains: q } } },
-        { seller: { fullName: { contains: q } } }
-      ]
+      if (/^\d+$/.test(q) && Number.isInteger(asNumber)) {
+        where.number = asNumber
+      } else {
+        where.OR = [
+          { buyer: { fullName: { contains: q } } },
+          { buyer: { documentId: { contains: q } } },
+          { buyer: { phone: { contains: q } } },
+          { seller: { fullName: { contains: q } } }
+        ]
+      }
     }
 
     const [items, total] = await Promise.all([
@@ -316,7 +324,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
         throw new Error(`No existe la boleta ${input.ticketNumber}.`)
       }
       if (!canAssign(ticket.status)) {
-        throw new Error('No se puede cambiar el vendedor de una boleta perdida.')
+        throw new Error('No se puede cambiar el vendedor de una boleta perdida o dañada.')
       }
 
       let sellerId = input.sellerId
@@ -411,11 +419,78 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
   }
 }
 
-export async function markTicketLost(number: number): Promise<ApiResult<TicketSummary>> {
+export async function unassignTicketFromSeller(
+  ticketNumber: number
+): Promise<ApiResult<TicketSummary>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'tickets:sell')
+    if (!Number.isInteger(ticketNumber) || ticketNumber < 0) {
+      return { ok: false, error: 'Número de boleta inválido.' }
+    }
+
+    const prisma = getPrisma()
+    const updated = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({
+        where: { number: ticketNumber },
+        select: ticketListSelect
+      })
+      if (!ticket) {
+        throw new Error(`No existe la boleta ${ticketNumber}.`)
+      }
+      if (!canAssign(ticket.status)) {
+        throw new Error('No se puede quitar el vendedor de una boleta perdida o dañada.')
+      }
+      if (!ticket.sellerId) {
+        throw new Error('La boleta ya está sin vendedor.')
+      }
+
+      await tx.ticketAssignment.updateMany({
+        where: { ticketId: ticket.id, endedAt: null },
+        data: { endedAt: new Date() }
+      })
+
+      const ticketUpdated = await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { sellerId: null },
+        select: ticketListSelect
+      })
+
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          module: 'BOLETAS',
+          action: 'BOLETA_DESASIGNADA',
+          entity: 'Ticket',
+          entityId: ticket.id,
+          previousValue: JSON.stringify({ sellerId: ticket.sellerId }),
+          newValue: JSON.stringify({
+            ticketNumber: ticket.number,
+            sellerId: null
+          }),
+          origin: 'MANUAL'
+        }
+      })
+
+      return ticketUpdated
+    })
+
+    updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
+    return { ok: true, data: mapTicket(updated as never) }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al quitar el vendedor' }
+  }
+}
+
+async function markTicketUnusable(
+  number: number,
+  nextStatus: 'PERDIDA' | 'DAÑADA'
+): Promise<ApiResult<TicketSummary>> {
   try {
     const session = requireSession()
     assertPermission(session.role, 'tickets:mark_lost')
     const prisma = getPrisma()
+    const label = nextStatus === 'DAÑADA' ? 'dañada' : 'perdida'
 
     const updated = await prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findUnique({
@@ -425,16 +500,16 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
       if (!ticket) {
         throw new Error(`No existe la boleta ${number}.`)
       }
-      if (ticket.status === 'PERDIDA') {
-        throw new Error(`La boleta ${number} ya está marcada como perdida.`)
+      if (ticket.status === nextStatus) {
+        throw new Error(`La boleta ${number} ya está marcada como ${label}.`)
       }
-      if (ticket.status === 'SIN_VENDER') {
-        throw new Error('No se puede marcar como perdida una boleta sin vender.')
+      if (isUnusableTicket(ticket.status)) {
+        throw new Error(`La boleta ${number} ya está ${ticket.status === 'DAÑADA' ? 'dañada' : 'perdida'}.`)
       }
 
       const result = await tx.ticket.update({
         where: { id: ticket.id },
-        data: { status: 'PERDIDA' },
+        data: { status: nextStatus },
         select: ticketListSelect
       })
 
@@ -442,11 +517,11 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
         data: {
           userId: session.userId,
           module: 'BOLETAS',
-          action: 'BOLETA_MARCADA_PERDIDA',
+          action: nextStatus === 'DAÑADA' ? 'BOLETA_MARCADA_DAÑADA' : 'BOLETA_MARCADA_PERDIDA',
           entity: 'Ticket',
           entityId: ticket.id,
           previousValue: JSON.stringify({ status: ticket.status }),
-          newValue: JSON.stringify({ status: 'PERDIDA' }),
+          newValue: JSON.stringify({ status: nextStatus }),
           origin: 'MANUAL'
         }
       })
@@ -459,9 +534,17 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : 'Error al marcar boleta como perdida'
+      error: e instanceof Error ? e.message : `Error al marcar boleta como ${nextStatus === 'DAÑADA' ? 'dañada' : 'perdida'}`
     }
   }
+}
+
+export async function markTicketLost(number: number): Promise<ApiResult<TicketSummary>> {
+  return markTicketUnusable(number, 'PERDIDA')
+}
+
+export async function markTicketDamaged(number: number): Promise<ApiResult<TicketSummary>> {
+  return markTicketUnusable(number, 'DAÑADA')
 }
 
 export async function getTicketBoard(): Promise<ApiResult<TicketBoardSnapshot>> {
@@ -490,6 +573,7 @@ export async function getTicketStats(): Promise<
         enAbonos: counts.enAbonos,
         cancelada: counts.cancelada,
         perdida: counts.perdida,
+        danada: counts.danada,
         liquidadas: counts.liquidadas,
         pendienteLiquidacion: counts.pendLiq,
         vendidas: counts.vendidas

@@ -77,6 +77,16 @@ describe('admin modules permissions', () => {
     expect(hasPermission('ADMIN', 'settings:manage')).toBe(true)
   })
 
+  it('lets ADMIN and USER manage sellers', () => {
+    expect(hasPermission('ADMIN', 'sellers:manage')).toBe(true)
+    expect(hasPermission('USER', 'sellers:manage')).toBe(true)
+  })
+
+  it('lets ADMIN and USER mark tickets lost or damaged', () => {
+    expect(hasPermission('ADMIN', 'tickets:mark_lost')).toBe(true)
+    expect(hasPermission('USER', 'tickets:mark_lost')).toBe(true)
+  })
+
   it('blocks USER from admin catalogs', () => {
     expect(hasPermission('USER', 'users:manage')).toBe(false)
     expect(hasPermission('USER', 'payment_methods:manage')).toBe(false)
