@@ -15,6 +15,7 @@ describe('settlement rules', () => {
     expect(canSettle('EN_ABONOS', false)).toBe(false)
     expect(canSettle('SIN_VENDER', false)).toBe(false)
     expect(canSettle('PERDIDA', false)).toBe(false)
+    expect(canSettle('DAÑADA', false)).toBe(false)
   })
 
   it('allows ADMIN and USER (operador) to settle tickets', () => {

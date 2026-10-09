@@ -17,12 +17,12 @@ export function recalcTicketFinancials(input: {
   const totalPaid = Math.trunc(input.totalPaidActive)
   const balanceDue = Math.max(0, totalAmount - totalPaid)
 
-  if (input.currentStatus === 'PERDIDA') {
+  if (isUnusableTicket(input.currentStatus)) {
     return {
       totalAmount,
       totalPaid,
       balanceDue,
-      status: 'PERDIDA'
+      status: input.currentStatus
     }
   }
 
@@ -49,8 +49,12 @@ export function canSell(status: TicketStatus): boolean {
   return status === 'SIN_VENDER'
 }
 
+export function isUnusableTicket(status: TicketStatus): boolean {
+  return status === 'PERDIDA' || status === 'DAÑADA'
+}
+
 export function canAssign(status: TicketStatus): boolean {
-  return status !== 'PERDIDA'
+  return !isUnusableTicket(status)
 }
 
 export function canSettle(status: TicketStatus, isSettled: boolean): boolean {
@@ -67,6 +71,8 @@ export function ticketStatusLabel(status: TicketStatus): string {
       return 'Cancelada'
     case 'PERDIDA':
       return 'Perdida'
+    case 'DAÑADA':
+      return 'Dañada'
     default:
       return status
   }

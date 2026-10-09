@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { splitSqlStatements } from '../src/main/db/sqlMigrator'
 import { buildBackupFileName } from '../src/main/backup/localSnapshot'
 import { DATABASE_FILE_NAME } from '../src/main/paths'
@@ -29,5 +30,10 @@ describe('packaging paths', () => {
     expect(buildBackupFileName(new Date('2026-09-08T15:30:00'))).toBe(
       'backup_2026-09-08_15-30-00.db'
     )
+  })
+
+  it('installs for all users in Program Files so it survives reboot', () => {
+    const yml = readFileSync('electron-builder.yml', 'utf8')
+    expect(yml).toMatch(/perMachine:\s*true/)
   })
 })

@@ -14,7 +14,8 @@ const statusLabel: Record<string, string> = {
   SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
-  PERDIDA: 'Perdida'
+  PERDIDA: 'Perdida',
+  DAÑADA: 'Dañada'
 }
 
 function displayDoc(value: string | null | undefined): string {
@@ -31,6 +32,7 @@ export function BuyersPage() {
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<BuyerSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [ticketPayments, setTicketPayments] = useState<Record<number, PaymentSummary[]>>({})
   const [loading, setLoading] = useState(true)
 
   async function load(q?: string) {
@@ -53,6 +55,26 @@ export function BuyersPage() {
   }, [query])
 
   const selected = items.find((b) => b.id === selectedId) ?? null
+
+  useEffect(() => {
+    const tickets = selected?.tickets ?? []
+    if (tickets.length === 0) {
+      setTicketPayments({})
+      return
+    }
+    let cancelled = false
+    void Promise.all(
+      tickets.map(async (ticket) => {
+        const res = await window.api.payments.listByTicket(ticket.number)
+        return [ticket.number, res.ok ? res.data : []] as const
+      })
+    ).then((rows) => {
+      if (!cancelled) setTicketPayments(Object.fromEntries(rows))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, selected?.tickets])
 
   return (
     <div className="space-y-6">
@@ -168,7 +190,7 @@ export function BuyersPage() {
                         <p>Saldo: <strong>{formatCop(ticket.balanceDue)}</strong></p>
                       </div>
                     </div>
-                    {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+                    {ticket.status !== 'PERDIDA' && ticket.status !== 'DAÑADA' && can('tickets:sell') && (
                       <div className="mt-3 rounded-xl border border-line p-3">
                         <AssignSellerForm
                           ticketNumber={ticket.number}
@@ -179,29 +201,12 @@ export function BuyersPage() {
                         />
                       </div>
                     )}
-                    {ticket.payments.length === 0 ? (
+                    {(ticketPayments[ticket.number] ?? []).length === 0 ? (
                       <p className="mt-3 text-sm text-ink-muted">Sin abonos registrados.</p>
                     ) : (
                       <div className="mt-3 overflow-hidden rounded-xl border border-line">
                         <PaymentHistoryTable
-                          payments={ticket.payments.map(
-                            (p, index): PaymentSummary => ({
-                              id: p.id,
-                              ticketId: '',
-                              ticketNumber: ticket.number,
-                              type: p.type === 'VENTA_INICIAL' ? 'VENTA_INICIAL' : 'ABONO',
-                              amount: p.amount,
-                              paidAt: p.paidAt,
-                              paymentMethodId: p.paymentMethodId,
-                              paymentMethodName: p.paymentMethodName,
-                              userId: '',
-                              userName: '',
-                              origin: 'MANUAL',
-                              notes: p.notes,
-                              sequence: index + 1,
-                              status: p.status
-                            })
-                          )}
+                          payments={ticketPayments[ticket.number] ?? []}
                           ticketNumber={ticket.number}
                           onChanged={() => void load(query)}
                         />

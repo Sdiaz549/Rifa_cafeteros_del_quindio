@@ -59,9 +59,10 @@ win:
 
 nsis:
   oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
+  perMachine: true
+  allowToChangeInstallationDirectory: false
   allowElevation: true
+  include: resources/installer.nsh
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Sistema de Rifas

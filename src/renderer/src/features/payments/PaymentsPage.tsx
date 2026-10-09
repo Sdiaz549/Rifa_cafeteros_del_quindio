@@ -19,7 +19,8 @@ const statusLabel: Record<string, string> = {
   SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
-  PERDIDA: 'Perdida'
+  PERDIDA: 'Perdida',
+  DAÑADA: 'Dañada'
 }
 
 export function PaymentsPage() {
@@ -111,7 +112,7 @@ export function PaymentsPage() {
       toast.error('Busque primero la boleta')
       return
     }
-    if (ticket.status === 'CANCELADA' || ticket.status === 'PERDIDA') {
+    if (ticket.status === 'CANCELADA' || ticket.status === 'PERDIDA' || ticket.status === 'DAÑADA') {
       toast.error('Esta boleta no admite abonos en su estado actual.')
       return
     }
@@ -260,7 +261,7 @@ export function PaymentsPage() {
             </div>
           </div>
 
-          {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+          {ticket.status !== 'PERDIDA' && ticket.status !== 'DAÑADA' && can('tickets:sell') && (
             <div className="rounded-2xl border border-line bg-white p-5">
               <AssignSellerForm
                 ticketNumber={ticket.number}

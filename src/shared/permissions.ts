@@ -31,13 +31,13 @@ const ADMIN_ONLY: Permission[] = [
   'backups:manage',
   'audit:view',
   'reports:financial',
-  'export:full',
-  'tickets:mark_lost'
+  'export:full'
 ]
 
 const USER_PERMS: Permission[] = [
   'tickets:view',
   'tickets:sell',
+  'tickets:mark_lost',
   'payments:create',
   'buyers:manage',
   'sellers:manage',

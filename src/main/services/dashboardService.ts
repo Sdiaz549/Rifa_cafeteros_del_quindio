@@ -123,6 +123,7 @@ export async function getAdminDashboard(input?: {
       enAbonos,
       cancelada,
       perdida,
+      danada,
       liquidadas,
       pendLiq
     } = ticketCounts
@@ -156,7 +157,8 @@ export async function getAdminDashboard(input?: {
       { label: 'Sin vender', value: disponible },
       { label: 'En abonos', value: enAbonos },
       { label: 'Cancelada', value: cancelada },
-      { label: 'Perdida', value: perdida }
+      { label: 'Perdida', value: perdida },
+      { label: 'Dañada', value: danada }
     ]
 
     return {
@@ -171,12 +173,13 @@ export async function getAdminDashboard(input?: {
         recaudado,
         porCobrar: porCobrar._sum.balanceDue ?? 0,
         total,
-        vendidas: total - disponible,
+        vendidas: total - disponible - perdida - danada,
         disponible,
         sinVender: disponible,
         enAbonos,
         cancelada,
         perdida,
+        danada,
         liquidadas,
         pendienteLiquidacion: pendLiq,
         sellerCount,
@@ -274,7 +277,7 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
       })
     ])
 
-    const { total, disponible, enAbonos, cancelada, perdida, liquidadas, vendidas } = ticketCounts
+    const { total, disponible, enAbonos, cancelada, perdida, danada, liquidadas, vendidas } = ticketCounts
     const sellerIds = sellerGroups.map((g) => g.sellerId).filter((id): id is string => Boolean(id))
     const sellers = sellerIds.length
       ? await prisma.seller.findMany({
@@ -345,6 +348,7 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
           enAbonos,
           cancelada,
           perdida,
+          danada,
           liquidadas
         },
         sellerCount,
@@ -356,7 +360,8 @@ export async function getHomeOverview(): Promise<ApiResult<HomeOverview>> {
             { label: 'Sin vender', value: disponible },
             { label: 'En abonos', value: enAbonos },
             { label: 'Canceladas', value: cancelada },
-            { label: 'Perdidas', value: perdida }
+            { label: 'Perdidas', value: perdida },
+            { label: 'Dañadas', value: danada }
           ],
           topVendedores: sellerGroups.map((g) => ({
             label: (g.sellerId && sellerNames.get(g.sellerId)) || 'Sin vendedor',

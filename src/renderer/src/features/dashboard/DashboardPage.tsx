@@ -26,7 +26,7 @@ const PERIODS = [
   { id: 'rango', label: 'Rango' }
 ] as const
 
-const PIE_COLORS = ['#fffdf8', '#ffe082', '#8cff4a', '#e53935']
+const PIE_COLORS = ['#fffdf8', '#ffe082', '#8cff4a', '#e53935', '#c45c26']
 
 function DashboardContent() {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]['id']>('mes')
@@ -68,6 +68,7 @@ function DashboardContent() {
     { label: 'En abonos', value: data.enAbonos },
     { label: 'Canceladas', value: data.cancelada },
     { label: 'Perdidas', value: data.perdida },
+    { label: 'Dañadas', value: data.danada },
     { label: 'Liquidadas', value: data.liquidadas },
     { label: 'Pend. liquidación', value: data.pendienteLiquidacion }
   ]

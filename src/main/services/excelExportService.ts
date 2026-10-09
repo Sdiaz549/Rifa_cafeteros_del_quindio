@@ -66,7 +66,7 @@ export async function exportFullWorkbook(input?: {
           orderBy: { number: 'asc' }
         }),
         prisma.buyer.findMany({ orderBy: { fullName: 'asc' } }),
-        prisma.seller.findMany({ orderBy: { fullName: 'asc' } }),
+        prisma.seller.findMany({ where: { deletedAt: null }, orderBy: { fullName: 'asc' } }),
         prisma.payment.findMany({
           where: { status: 'ACTIVO', ...dateFilter('paidAt') },
           include: {

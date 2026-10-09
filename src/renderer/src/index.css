@@ -314,6 +314,12 @@
     color: white;
   }
 
+  .ticket-danada {
+    background: #c45c26;
+    border-color: #8a3b10;
+    color: white;
+  }
+
   .ticket-liquidada {
     background: var(--color-ticket-settled);
     border-color: #c40090;

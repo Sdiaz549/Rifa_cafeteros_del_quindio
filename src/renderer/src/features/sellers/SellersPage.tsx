@@ -33,6 +33,7 @@ export function SellersPage() {
   const [settling, setSettling] = useState(false)
   const [exportingWord, setExportingWord] = useState(false)
   const [exportingPayments, setExportingPayments] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function load(q?: string) {
     setLoading(true)
@@ -163,6 +164,30 @@ export function SellersPage() {
     await load(query)
   }
 
+  async function deleteSeller(seller: { id: string; fullName: string }) {
+    if (
+      !window.confirm(
+        `¿Eliminar al vendedor ${seller.fullName}? Sus boletas quedarán sin vendedor asignado.`
+      )
+    ) {
+      return
+    }
+    setDeleting(true)
+    const res = await window.api.sellers.delete(seller.id)
+    setDeleting(false)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success('Vendedor eliminado')
+    if (selected?.id === seller.id) {
+      setSelected(null)
+      setSellerTickets([])
+      setForm(emptyForm)
+    }
+    await load(query)
+  }
+
   async function exportWord() {
     if (!selected || exportingWord) return
     if (tickets.length === 0) {
@@ -276,13 +301,23 @@ export function SellersPage() {
             {saving ? 'Guardando…' : form.id ? 'Guardar cambios' : 'Guardar vendedor'}
           </button>
           {form.id ? (
-            <button
-              type="button"
-              className="w-full rounded-xl border border-line py-2 text-sm font-medium text-brand-900"
-              onClick={() => setForm(emptyForm)}
-            >
-              Nuevo vendedor
-            </button>
+            <>
+              <button
+                type="button"
+                className="w-full rounded-xl border border-line py-2 text-sm font-medium text-brand-900"
+                onClick={() => setForm(emptyForm)}
+              >
+                Nuevo vendedor
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                className="btn-danger w-full disabled:opacity-60"
+                onClick={() => void deleteSeller({ id: form.id, fullName: form.fullName })}
+              >
+                {deleting ? 'Eliminando…' : 'Eliminar vendedor'}
+              </button>
+            </>
           ) : null}
         </form>
 
@@ -321,7 +356,20 @@ export function SellersPage() {
                     <td className="px-4 py-2.5">{s.status}</td>
                     <td className="px-4 py-2.5">{s.ticketsCount ?? 0}</td>
                     <td className="px-4 py-2.5">
-                      <span className="text-brand-800 underline">Ver</span>
+                      <div className="flex flex-wrap gap-3">
+                        <span className="text-brand-800 underline">Ver</span>
+                        <button
+                          type="button"
+                          className="text-sm font-semibold text-accent-red"
+                          disabled={deleting}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void deleteSeller(s)
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -336,7 +384,17 @@ export function SellersPage() {
           ) : (
             <>
               <div className="border-b border-line p-5">
-                <h2 className="font-semibold text-brand-900">{selected.fullName}</h2>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h2 className="font-semibold text-brand-900">{selected.fullName}</h2>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    className="text-sm font-semibold text-accent-red disabled:opacity-60"
+                    onClick={() => void deleteSeller(selected)}
+                  >
+                    {deleting ? 'Eliminando…' : 'Eliminar vendedor'}
+                  </button>
+                </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                   <div className="flex justify-between gap-2">
                     <dt className="text-ink-muted">Sin vender</dt>
@@ -504,7 +562,7 @@ export function SellersPage() {
                             <td className="px-3 py-2 font-medium">{formatCop(t.totalPaid)}</td>
                             <td className="px-3 py-2">{formatCop(t.balanceDue)}</td>
                             <td className="px-3 py-2">
-                              {t.status !== 'PERDIDA' && (
+                              {t.status !== 'PERDIDA' && t.status !== 'DAÑADA' && (
                                 <TicketEditButton
                                   ticketNumber={t.number}
                                   onChanged={() => {

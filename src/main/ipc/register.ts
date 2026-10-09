@@ -39,10 +39,14 @@ const handlers: Record<IpcChannel, IpcHandler> = {
   [IPC_CHANNELS.TICKETS_STATS]: async () => ticketService.getTicketStats(),
   [IPC_CHANNELS.TICKETS_MARK_LOST]: async (_e, number) =>
     ticketService.markTicketLost(number as number),
+  [IPC_CHANNELS.TICKETS_MARK_DAMAGED]: async (_e, number) =>
+    ticketService.markTicketDamaged(number as number),
   [IPC_CHANNELS.TICKETS_ASSIGN]: async (_e, payload) =>
     ticketService.assignTicketToSeller(
       payload as Parameters<typeof ticketService.assignTicketToSeller>[0]
     ),
+  [IPC_CHANNELS.TICKETS_UNASSIGN]: async (_e, number) =>
+    ticketService.unassignTicketFromSeller(number as number),
   [IPC_CHANNELS.TICKETS_SET_BUYER]: async (_e, payload) =>
     ticketService.setTicketBuyer(payload as Parameters<typeof ticketService.setTicketBuyer>[0]),
 
@@ -67,6 +71,7 @@ const handlers: Record<IpcChannel, IpcHandler> = {
   [IPC_CHANNELS.SELLERS_UPSERT]: async (_e, payload) =>
     sellerService.upsertSeller(payload as Parameters<typeof sellerService.upsertSeller>[0]),
   [IPC_CHANNELS.SELLERS_GET_BY_ID]: async (_e, id) => sellerService.getSellerById(id as string),
+  [IPC_CHANNELS.SELLERS_DELETE]: async (_e, id) => sellerService.deleteSeller(id as string),
   [IPC_CHANNELS.SELLERS_EXPORT_TICKETS_WORD]: async (_e, id) =>
     exportSellerTicketsWord(id as string),
   [IPC_CHANNELS.SELLERS_EXPORT_PAYMENTS_WORD]: async (_e, id) =>

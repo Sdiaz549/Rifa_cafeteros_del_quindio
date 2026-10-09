@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import type { PaymentSummary, TicketSummary } from '@shared/types'
 import { formatTicketNumber } from '@shared/tickets/numbers'
 import { useAuth } from '../auth/AuthContext'
+import { isUnusableTicket } from '@shared/domain/ticketStatus'
 import { AssignSellerForm } from './AssignSellerForm'
+import { MarkUnusableButtons } from './MarkUnusableButtons'
 import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
 
 export function TicketEditModal({
@@ -68,7 +70,7 @@ export function TicketEditModal({
 
         {ticket && (
           <div className="mt-5 space-y-5">
-            {ticket.status !== 'PERDIDA' && can('tickets:sell') && (
+            {!isUnusableTicket(ticket.status) && can('tickets:sell') && (
               <AssignSellerForm
                 ticketNumber={ticket.number}
                 currentSellerName={ticket.sellerName}
@@ -77,6 +79,11 @@ export function TicketEditModal({
                 onAssigned={() => void handleChanged()}
               />
             )}
+            <MarkUnusableButtons
+              ticketNumber={ticket.number}
+              status={ticket.status}
+              onDone={() => void handleChanged()}
+            />
 
             <div className="overflow-hidden rounded-2xl border border-line">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">

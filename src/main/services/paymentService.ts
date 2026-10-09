@@ -4,7 +4,7 @@ import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { assertNonNegativeMoney } from '../../shared/money'
-import { canAcceptPayment, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
+import { canAcceptPayment, isUnusableTicket, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
 import type {
   ApiResult,
   CreatePaymentInput,
@@ -107,7 +107,7 @@ async function refreshTicketFromPayments(
   })
   const totalPaidActive = paidAgg._sum.amount ?? 0
 
-  if (totalPaidActive <= 0 && ticket.status !== 'PERDIDA') {
+  if (totalPaidActive <= 0 && !isUnusableTicket(ticket.status)) {
     await tx.sale.updateMany({
       where: { ticketId: ticket.id, status: 'ACTIVO' },
       data: { status: 'ANULADO' }
@@ -319,8 +319,8 @@ export async function updatePayment(
       })
       if (!existing) throw new Error('No existe el abono indicado.')
       if (existing.status === 'ANULADO') throw new Error('El abono ya está anulado.')
-      if (existing.ticket.status === 'PERDIDA') {
-        throw new Error('No se puede editar un abono de una boleta perdida.')
+      if (isUnusableTicket(existing.ticket.status)) {
+        throw new Error('No se puede editar un abono de una boleta perdida o dañada.')
       }
 
       const nextAmount = input.amount ?? existing.amount
@@ -409,8 +409,8 @@ export async function voidPayment(
       })
       if (!existing) throw new Error('No existe el abono indicado.')
       if (existing.status === 'ANULADO') throw new Error('El abono ya está anulado.')
-      if (existing.ticket.status === 'PERDIDA') {
-        throw new Error('No se puede quitar un abono de una boleta perdida.')
+      if (isUnusableTicket(existing.ticket.status)) {
+        throw new Error('No se puede quitar un abono de una boleta perdida o dañada.')
       }
 
       const payment = await tx.payment.update({

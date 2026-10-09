@@ -18,6 +18,7 @@ enum TicketStatus {
   EN_ABONOS
   CANCELADA
   PERDIDA
+  DAÑADA
 }
 
 enum SellerStatus {
@@ -89,6 +90,7 @@ model Seller {
   address    String?
   status     SellerStatus @default(ACTIVO)
   notes      String?
+  deletedAt  DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -100,6 +102,7 @@ model Seller {
   @@index([fullName])
   @@index([phone])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model Buyer {

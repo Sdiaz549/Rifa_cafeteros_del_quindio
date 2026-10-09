@@ -57,6 +57,7 @@ export async function listUnsoldBySeller(input?: {
     const [sellers, unsoldTickets, totalTickets, withoutSellerCount] = await Promise.all([
       prisma.seller.findMany({
         where: {
+          deletedAt: null,
           ...(input?.sellerId ? { id: input.sellerId } : {}),
           ...(q ? { fullName: { contains: q } } : {})
         },

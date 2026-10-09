@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Grid2X2, List, Ticket, X } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
+import { isUnusableTicket } from '@shared/domain/ticketStatus'
 import { boardStatsFromPacked, boardIndexForQuery, packTicketCell, packedCellMatchesFilter, unpackTicketCell, type TicketBoardFilter } from '@shared/tickets/board'
 import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { cn } from '../../lib/cn'
@@ -12,6 +13,7 @@ import { AssignSellerForm } from './AssignSellerForm'
 import { SellTicketForm } from '../sales/SellTicketForm'
 import { TicketBoardCanvas } from './TicketBoardCanvas'
 import { TicketEditButton } from './TicketEditModal'
+import { MarkUnusableButtons } from './MarkUnusableButtons'
 
 const PAGE_SIZE = 80
 
@@ -19,7 +21,8 @@ const statusClass: Record<TicketStatus, string> = {
   SIN_VENDER: 'ticket-sin-vender',
   EN_ABONOS: 'ticket-en-abonos',
   CANCELADA: 'ticket-cancelada',
-  PERDIDA: 'ticket-perdida'
+  PERDIDA: 'ticket-perdida',
+  DAÑADA: 'ticket-danada'
 }
 
 function ticketTone(status: TicketStatus, isSettled?: boolean): string {
@@ -37,7 +40,8 @@ const statusLabel: Record<TicketStatus, string> = {
   SIN_VENDER: 'Sin vender',
   EN_ABONOS: 'En abonos',
   CANCELADA: 'Cancelada',
-  PERDIDA: 'Perdida'
+  PERDIDA: 'Perdida',
+  DAÑADA: 'Dañada'
 }
 
 export function TicketsPage() {
@@ -47,8 +51,23 @@ export function TicketsPage() {
   const initialQ = params.get('q') ?? ''
   const [query, setQuery] = useState(initialQ)
   const [debouncedQuery, setDebouncedQuery] = useState(initialQ)
-  const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [status, setStatus] = useState<TicketBoardFilter>('')
+  const [view, setView] = useState<'grid' | 'list'>(() =>
+    initialQ && parseTicketNumber(initialQ) == null ? 'list' : 'grid'
+  )
+  const [status, setStatus] = useState<TicketBoardFilter>(() => {
+    const raw = params.get('status')
+    if (
+      raw === 'SIN_VENDER' ||
+      raw === 'EN_ABONOS' ||
+      raw === 'CANCELADA' ||
+      raw === 'PERDIDA' ||
+      raw === 'DAÑADA' ||
+      raw === 'LIQUIDADA'
+    ) {
+      return raw
+    }
+    return ''
+  })
   const [items, setItems] = useState<TicketSummary[]>([])
   const [total, setTotal] = useState(0)
   const [boardFirst, setBoardFirst] = useState(0)
@@ -76,7 +95,7 @@ export function TicketsPage() {
   }, [initialQ])
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 180)
+    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 250)
     return () => window.clearTimeout(t)
   }, [query])
 
@@ -250,7 +269,8 @@ export function TicketsPage() {
         { id: 'EN_ABONOS' as const, label: 'En abonos', className: 'ticket-en-abonos' },
         { id: 'CANCELADA' as const, label: 'Canceladas', className: 'ticket-cancelada' },
         { id: 'LIQUIDADA' as const, label: 'Liquidadas', className: 'ticket-liquidada' },
-        { id: 'PERDIDA' as const, label: 'Perdidas', className: 'ticket-perdida' }
+        { id: 'PERDIDA' as const, label: 'Perdidas', className: 'ticket-perdida' },
+        { id: 'DAÑADA' as const, label: 'Dañadas', className: 'ticket-danada' }
       ] satisfies Array<{ id: Exclude<TicketBoardFilter, ''>; label: string; className: string }>,
     []
   )
@@ -510,14 +530,11 @@ export function TicketsPage() {
                       <button
                         type="button"
                         className="rounded-lg bg-forest px-3 py-1 text-xs font-semibold text-white"
-                        onClick={() => {
-                          setSelectedTicket(t)
-                          setAssignStep('form')
-                        }}
+                        onClick={() => openAvailable(t)}
                       >
                         {t.sellerName ? 'Cambiar vendedor' : 'Asignar'}
                       </button>
-                    ) : t.status !== 'PERDIDA' ? (
+                    ) : !isUnusableTicket(t.status) ? (
                       <TicketEditButton
                         ticketNumber={t.number}
                         onChanged={() => {
@@ -624,6 +641,15 @@ export function TicketsPage() {
                     Asignar a un vendedor
                   </button>
                 </div>
+                <div className="mt-4 border-t border-line pt-4">
+                  <MarkUnusableButtons
+                    ticketNumber={selectedTicket.number}
+                    status={selectedTicket.status}
+                    onDone={() => {
+                      void refreshAfterAssign(selectedTicket.number).then(closeAssignModal)
+                    }}
+                  />
+                </div>
               </>
             ) : assignStep === 'sell' ? (
               <div className="mt-4">
@@ -639,7 +665,7 @@ export function TicketsPage() {
                 />
               </div>
             ) : (
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <AssignSellerForm
                   ticketNumber={selectedTicket.number}
                   currentSellerName={selectedTicket.sellerName}
@@ -651,6 +677,13 @@ export function TicketsPage() {
                     setSellSellerId(sellerId)
                     setAssignStep('sell')
                     void refreshAfterAssign(selectedTicket.number)
+                  }}
+                />
+                <MarkUnusableButtons
+                  ticketNumber={selectedTicket.number}
+                  status={selectedTicket.status}
+                  onDone={() => {
+                    void refreshAfterAssign(selectedTicket.number).then(closeAssignModal)
                   }}
                 />
               </div>
