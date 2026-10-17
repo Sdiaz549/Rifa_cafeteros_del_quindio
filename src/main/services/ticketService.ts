@@ -3,11 +3,20 @@ import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import type { ApiResult, TicketBoardSnapshot, TicketSummary } from '../../shared/types'
-import { ticketStatusLabel, canAssign, isUnusableTicket } from '../../shared/domain/ticketStatus'
+import {
+  ticketStatusLabel,
+  canAssign,
+  isUnusableTicket,
+  restoreUnusableTicketStatus,
+  recalcTicketFinancials
+} from '../../shared/domain/ticketStatus'
+import { isGeneratedDocumentId, publicDocumentId } from '../../shared/identity'
 import type { TicketStatus } from '../../shared/types'
 import { DEFAULT_TICKET_COUNT, SETTING_KEYS } from '../../shared/constants'
 import { ticketNumberBounds } from '../../shared/tickets/numbers'
 import { z } from 'zod'
+import { SQLITE_TX } from '../db/sqliteTx'
+import { getIndexedTicket, listIndexedTickets, rememberTicket } from './ticketIndex'
 import { invalidateTicketBoard, loadTicketBoardSnapshot, updateTicketBoardCell } from './ticketBoardCache'
 
 const ticketListSelect = {
@@ -22,7 +31,7 @@ const ticketListSelect = {
   balanceDue: true,
   soldAt: true,
   seller: { select: { fullName: true } },
-  buyer: { select: { fullName: true } }
+  buyer: { select: { fullName: true, documentId: true, phone: true, address: true } }
 } as const
 
 function n(value: unknown): number {
@@ -84,9 +93,14 @@ function mapTicket(t: {
   balanceDue: number
   soldAt: Date | null
   seller: { fullName: string } | null
-  buyer: { fullName: string } | null
+  buyer: {
+    fullName: string
+    documentId?: string | null
+    phone?: string | null
+    address?: string | null
+  } | null
 }): TicketSummary {
-  return {
+  const summary: TicketSummary = {
     id: t.id,
     number: t.number,
     status: t.status,
@@ -95,11 +109,16 @@ function mapTicket(t: {
     sellerName: t.seller?.fullName ?? null,
     buyerId: t.buyerId,
     buyerName: t.buyer?.fullName ?? null,
+    buyerDocumentId: publicDocumentId(t.buyer?.documentId) || null,
+    buyerPhone: t.buyer?.phone?.trim() ? t.buyer.phone : null,
+    buyerAddress: t.buyer?.address ?? null,
     totalAmount: t.totalAmount,
     totalPaid: t.totalPaid,
     balanceDue: t.balanceDue,
     soldAt: t.soldAt?.toISOString() ?? null
   }
+  rememberTicket(summary)
+  return summary
 }
 
 export async function listTickets(input?: {
@@ -113,48 +132,7 @@ export async function listTickets(input?: {
   try {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
-    const prisma = getPrisma()
-    const take = Math.min(Math.max(input?.take ?? 250, 1), 10000)
-    const skip = Math.max(input?.skip ?? 0, 0)
-    const q = input?.query?.trim()
-
-    const where: Record<string, unknown> = {}
-    if (input?.status) where.status = input.status
-    if (input?.isSettled === true) where.isSettled = true
-    if (input?.isSettled === false) where.isSettled = false
-    if (input?.sellerId) where.sellerId = input.sellerId
-    if (q) {
-      const asNumber = Number(q)
-      if (/^\d+$/.test(q) && Number.isInteger(asNumber)) {
-        where.number = asNumber
-      } else {
-        where.OR = [
-          { buyer: { fullName: { contains: q } } },
-          { buyer: { documentId: { contains: q } } },
-          { buyer: { phone: { contains: q } } },
-          { seller: { fullName: { contains: q } } }
-        ]
-      }
-    }
-
-    const [items, total] = await Promise.all([
-      prisma.ticket.findMany({
-        where,
-        select: ticketListSelect,
-        orderBy: { number: 'asc' },
-        take,
-        skip
-      }),
-      prisma.ticket.count({ where })
-    ])
-
-    return {
-      ok: true,
-      data: {
-        items: items.map((t) => mapTicket(t as never)),
-        total
-      }
-    }
+    return { ok: true, data: listIndexedTickets(input) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al listar boletas' }
   }
@@ -166,6 +144,13 @@ export async function getTicketByNumber(
   try {
     const session = requireSession()
     assertPermission(session.role, 'tickets:view')
+    const cached = getIndexedTicket(number)
+    if (cached) {
+      return {
+        ok: true,
+        data: { ...cached, statusLabel: ticketStatusLabel(cached.status) }
+      }
+    }
     const prisma = getPrisma()
     const ticket = await prisma.ticket.findUnique({
       where: { number },
@@ -186,7 +171,10 @@ export async function getTicketByNumber(
 
 const setBuyerSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
-  fullName: z.string().min(2)
+  fullName: z.string().min(2),
+  documentId: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable()
 })
 
 export async function setTicketBuyer(raw: unknown): Promise<ApiResult<TicketSummary>> {
@@ -198,6 +186,9 @@ export async function setTicketBuyer(raw: unknown): Promise<ApiResult<TicketSumm
       return { ok: false, error: 'Indique el nombre del comprador.' }
     }
     const fullName = parsed.data.fullName.trim()
+    const documentId = publicDocumentId(parsed.data.documentId)
+    const phone = parsed.data.phone?.trim() ?? ''
+    const address = parsed.data.address?.trim() || null
     const prisma = getPrisma()
     const updated = await prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findUnique({
@@ -210,46 +201,73 @@ export async function setTicketBuyer(raw: unknown): Promise<ApiResult<TicketSumm
 
       if (ticket.buyerId) {
         const current = await tx.buyer.findUnique({ where: { id: ticket.buyerId } })
-        if (current && current.fullName.trim().toLocaleLowerCase('es') === fullName.toLocaleLowerCase('es')) {
-          return ticket
+        if (!current) {
+          throw new Error('El comprador de esta boleta ya no existe.')
         }
-        const otherTickets = current
-          ? await tx.ticket.count({ where: { buyerId: current.id, NOT: { id: ticket.id } } })
-          : 0
-        if (current && otherTickets === 0) {
-          await tx.buyer.update({ where: { id: current.id }, data: { fullName } })
-          const renamed = await tx.ticket.findUnique({
-            where: { id: ticket.id },
-            select: ticketListSelect
-          })
-          await tx.auditLog.create({
-            data: {
-              userId: session.userId,
-              module: 'BOLETAS',
-              action: 'COMPRADOR_ACTUALIZADO',
-              entity: 'Ticket',
-              entityId: ticket.id,
-              previousValue: JSON.stringify({ buyerId: ticket.buyerId, buyerName: current.fullName }),
-              newValue: JSON.stringify({
-                ticketNumber: ticket.number,
-                buyerId: current.id,
-                buyerName: fullName
-              }),
-              origin: 'MANUAL'
-            }
-          })
-          return renamed ?? ticket
+        if (documentId && documentId !== current.documentId) {
+          const clash = await tx.buyer.findUnique({ where: { documentId } })
+          if (clash) {
+            throw new Error('Ya existe un comprador con esa cédula.')
+          }
         }
+        await tx.buyer.update({
+          where: { id: current.id },
+          data: {
+            fullName,
+            phone,
+            address,
+            ...(documentId ? { documentId } : {})
+          }
+        })
+        const refreshed = await tx.ticket.findUnique({
+          where: { id: ticket.id },
+          select: ticketListSelect
+        })
+        await tx.auditLog.create({
+          data: {
+            userId: session.userId,
+            module: 'BOLETAS',
+            action: 'COMPRADOR_ACTUALIZADO',
+            entity: 'Ticket',
+            entityId: ticket.id,
+            previousValue: JSON.stringify({
+              buyerId: current.id,
+              buyerName: current.fullName,
+              documentId: current.documentId,
+              phone: current.phone
+            }),
+            newValue: JSON.stringify({
+              ticketNumber: ticket.number,
+              buyerId: current.id,
+              buyerName: fullName,
+              documentId: documentId || current.documentId,
+              phone
+            }),
+            origin: 'MANUAL'
+          }
+        })
+        return refreshed ?? ticket
       }
 
-      const existing = await tx.buyer.findFirst({ where: { fullName } })
+      const existing = documentId
+        ? await tx.buyer.findUnique({ where: { documentId } })
+        : await tx.buyer.findFirst({ where: { fullName } })
       const buyer = existing
-        ? existing
+        ? await tx.buyer.update({
+            where: { id: existing.id },
+            data: {
+              fullName,
+              phone: phone || existing.phone,
+              address: address ?? existing.address,
+              ...(documentId && isGeneratedDocumentId(existing.documentId) ? { documentId } : {})
+            }
+          })
         : await tx.buyer.create({
             data: {
               fullName,
-              documentId: `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-              phone: ''
+              documentId: documentId || `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+              phone,
+              address
             }
           })
 
@@ -279,7 +297,7 @@ export async function setTicketBuyer(raw: unknown): Promise<ApiResult<TicketSumm
         }
       })
       return ticketUpdated
-    })
+    }, SQLITE_TX)
 
     return { ok: true, data: mapTicket(updated as never) }
   } catch (e) {
@@ -410,7 +428,7 @@ export async function assignTicketToSeller(raw: unknown): Promise<ApiResult<Tick
       })
 
       return ticketUpdated
-    })
+    }, SQLITE_TX)
 
     updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
     return { ok: true, data: mapTicket(updated as never) }
@@ -430,49 +448,43 @@ export async function unassignTicketFromSeller(
     }
 
     const prisma = getPrisma()
-    const updated = await prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.findUnique({
-        where: { number: ticketNumber },
-        select: ticketListSelect
-      })
-      if (!ticket) {
-        throw new Error(`No existe la boleta ${ticketNumber}.`)
+    const ticket = await prisma.ticket.findUnique({
+      where: { number: ticketNumber },
+      select: ticketListSelect
+    })
+    if (!ticket) {
+      return { ok: false, error: `No existe la boleta ${ticketNumber}.` }
+    }
+    if (!canAssign(ticket.status)) {
+      return { ok: false, error: 'No se puede quitar el vendedor de una boleta perdida o dañada.' }
+    }
+    if (!ticket.sellerId) {
+      return { ok: false, error: 'La boleta ya está sin vendedor.' }
+    }
+
+    await prisma.ticketAssignment.updateMany({
+      where: { ticketId: ticket.id, endedAt: null },
+      data: { endedAt: new Date() }
+    })
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { sellerId: null },
+      select: ticketListSelect
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        module: 'BOLETAS',
+        action: 'BOLETA_DESASIGNADA',
+        entity: 'Ticket',
+        entityId: ticket.id,
+        previousValue: JSON.stringify({ sellerId: ticket.sellerId }),
+        newValue: JSON.stringify({
+          ticketNumber: ticket.number,
+          sellerId: null
+        }),
+        origin: 'MANUAL'
       }
-      if (!canAssign(ticket.status)) {
-        throw new Error('No se puede quitar el vendedor de una boleta perdida o dañada.')
-      }
-      if (!ticket.sellerId) {
-        throw new Error('La boleta ya está sin vendedor.')
-      }
-
-      await tx.ticketAssignment.updateMany({
-        where: { ticketId: ticket.id, endedAt: null },
-        data: { endedAt: new Date() }
-      })
-
-      const ticketUpdated = await tx.ticket.update({
-        where: { id: ticket.id },
-        data: { sellerId: null },
-        select: ticketListSelect
-      })
-
-      await tx.auditLog.create({
-        data: {
-          userId: session.userId,
-          module: 'BOLETAS',
-          action: 'BOLETA_DESASIGNADA',
-          entity: 'Ticket',
-          entityId: ticket.id,
-          previousValue: JSON.stringify({ sellerId: ticket.sellerId }),
-          newValue: JSON.stringify({
-            ticketNumber: ticket.number,
-            sellerId: null
-          }),
-          origin: 'MANUAL'
-        }
-      })
-
-      return ticketUpdated
     })
 
     updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
@@ -492,41 +504,39 @@ async function markTicketUnusable(
     const prisma = getPrisma()
     const label = nextStatus === 'DAÑADA' ? 'dañada' : 'perdida'
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.findUnique({
-        where: { number },
-        select: ticketListSelect
-      })
-      if (!ticket) {
-        throw new Error(`No existe la boleta ${number}.`)
+    const ticket = await prisma.ticket.findUnique({
+      where: { number },
+      select: ticketListSelect
+    })
+    if (!ticket) {
+      return { ok: false, error: `No existe la boleta ${number}.` }
+    }
+    if (ticket.status === nextStatus) {
+      return { ok: false, error: `La boleta ${number} ya está marcada como ${label}.` }
+    }
+    if (isUnusableTicket(ticket.status)) {
+      return {
+        ok: false,
+        error: `La boleta ${number} ya está ${ticket.status === 'DAÑADA' ? 'dañada' : 'perdida'}.`
       }
-      if (ticket.status === nextStatus) {
-        throw new Error(`La boleta ${number} ya está marcada como ${label}.`)
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status: nextStatus },
+      select: ticketListSelect
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        module: 'BOLETAS',
+        action: nextStatus === 'DAÑADA' ? 'BOLETA_MARCADA_DAÑADA' : 'BOLETA_MARCADA_PERDIDA',
+        entity: 'Ticket',
+        entityId: ticket.id,
+        previousValue: JSON.stringify({ status: ticket.status }),
+        newValue: JSON.stringify({ status: nextStatus }),
+        origin: 'MANUAL'
       }
-      if (isUnusableTicket(ticket.status)) {
-        throw new Error(`La boleta ${number} ya está ${ticket.status === 'DAÑADA' ? 'dañada' : 'perdida'}.`)
-      }
-
-      const result = await tx.ticket.update({
-        where: { id: ticket.id },
-        data: { status: nextStatus },
-        select: ticketListSelect
-      })
-
-      await tx.auditLog.create({
-        data: {
-          userId: session.userId,
-          module: 'BOLETAS',
-          action: nextStatus === 'DAÑADA' ? 'BOLETA_MARCADA_DAÑADA' : 'BOLETA_MARCADA_PERDIDA',
-          entity: 'Ticket',
-          entityId: ticket.id,
-          previousValue: JSON.stringify({ status: ticket.status }),
-          newValue: JSON.stringify({ status: nextStatus }),
-          origin: 'MANUAL'
-        }
-      })
-
-      return result
     })
 
     updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
@@ -545,6 +555,69 @@ export async function markTicketLost(number: number): Promise<ApiResult<TicketSu
 
 export async function markTicketDamaged(number: number): Promise<ApiResult<TicketSummary>> {
   return markTicketUnusable(number, 'DAÑADA')
+}
+
+export async function restoreTicket(number: number): Promise<ApiResult<TicketSummary>> {
+  try {
+    const session = requireSession()
+    assertPermission(session.role, 'tickets:mark_lost')
+    const prisma = getPrisma()
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { number },
+      select: ticketListSelect
+    })
+    if (!ticket) {
+      return { ok: false, error: `No existe la boleta ${number}.` }
+    }
+    if (!isUnusableTicket(ticket.status)) {
+      return { ok: false, error: `La boleta ${number} no está marcada como perdida ni dañada.` }
+    }
+
+    const paid = await prisma.payment.aggregate({
+      where: { ticketId: ticket.id, status: 'ACTIVO' },
+      _sum: { amount: true }
+    })
+    const financials = recalcTicketFinancials({
+      totalAmount: ticket.totalAmount,
+      totalPaidActive: paid._sum.amount ?? 0,
+      currentStatus: restoreUnusableTicketStatus({
+        totalAmount: ticket.totalAmount,
+        totalPaidActive: paid._sum.amount ?? 0
+      })
+    })
+
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        status: financials.status,
+        totalPaid: financials.totalPaid,
+        balanceDue: financials.balanceDue,
+        totalAmount: financials.totalAmount
+      },
+      select: ticketListSelect
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        module: 'BOLETAS',
+        action: 'BOLETA_RESTAURADA',
+        entity: 'Ticket',
+        entityId: ticket.id,
+        previousValue: JSON.stringify({ status: ticket.status }),
+        newValue: JSON.stringify({ status: financials.status }),
+        origin: 'MANUAL'
+      }
+    })
+
+    updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
+    return { ok: true, data: mapTicket(updated as never) }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error al quitar la boleta de perdidas o dañadas'
+    }
+  }
 }
 
 export async function getTicketBoard(): Promise<ApiResult<TicketBoardSnapshot>> {

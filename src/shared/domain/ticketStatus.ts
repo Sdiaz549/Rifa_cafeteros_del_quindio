@@ -53,6 +53,18 @@ export function isUnusableTicket(status: TicketStatus): boolean {
   return status === 'PERDIDA' || status === 'DAÑADA'
 }
 
+/** Al sacar una boleta de perdida/dañada, vuelve al estado según lo pagado. */
+export function restoreUnusableTicketStatus(input: {
+  totalAmount: number
+  totalPaidActive: number
+}): TicketStatus {
+  return recalcTicketFinancials({
+    totalAmount: input.totalAmount,
+    totalPaidActive: input.totalPaidActive,
+    currentStatus: input.totalAmount > 0 ? 'EN_ABONOS' : 'SIN_VENDER'
+  }).status
+}
+
 export function canAssign(status: TicketStatus): boolean {
   return !isUnusableTicket(status)
 }

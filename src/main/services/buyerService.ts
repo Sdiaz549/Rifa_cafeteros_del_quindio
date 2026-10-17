@@ -1,13 +1,16 @@
 import { z } from 'zod'
+import { randomUUID } from 'node:crypto'
 import { getPrisma } from '../db/client'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
+import { publicDocumentId } from '../../shared/identity'
 import type { ApiResult, BuyerSummary, BuyerTicketSummary } from '../../shared/types'
 
 const buyerSchema = z.object({
-  fullName: z.string().min(2),
-  documentId: z.string().min(3),
-  phone: z.string().min(5),
+  id: z.string().optional(),
+  fullName: z.string().trim().min(2, 'El nombre del comprador es obligatorio.'),
+  documentId: z.string().trim().optional().nullable(),
+  phone: z.string().trim().optional().nullable(),
   address: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal('')),
   notes: z.string().optional().nullable()
@@ -155,16 +158,32 @@ export async function upsertBuyer(raw: unknown): Promise<ApiResult<BuyerSummary>
     }
     const data = parsed.data
     const prisma = getPrisma()
-    const existing = await prisma.buyer.findUnique({ where: { documentId: data.documentId } })
+    const documentId = publicDocumentId(data.documentId)
+    const phone = data.phone?.trim() ?? ''
+    const existing = data.id
+      ? await prisma.buyer.findUnique({ where: { id: data.id } })
+      : documentId
+        ? await prisma.buyer.findUnique({ where: { documentId } })
+        : null
+    if (data.id && !existing) {
+      return { ok: false, error: 'Comprador no encontrado.' }
+    }
+    if (documentId && existing && documentId !== existing.documentId) {
+      const clash = await prisma.buyer.findUnique({ where: { documentId } })
+      if (clash) {
+        return { ok: false, error: 'Ya existe un comprador con esa cédula.' }
+      }
+    }
     const buyer = existing
       ? await prisma.buyer.update({
           where: { id: existing.id },
           data: {
             fullName: data.fullName,
-            phone: data.phone,
+            phone,
             address: data.address || null,
             email: data.email || null,
-            notes: data.notes || null
+            notes: data.notes || null,
+            ...(documentId ? { documentId } : {})
           },
           include: {
             _count: { select: { tickets: true } }
@@ -173,8 +192,8 @@ export async function upsertBuyer(raw: unknown): Promise<ApiResult<BuyerSummary>
       : await prisma.buyer.create({
           data: {
             fullName: data.fullName,
-            documentId: data.documentId,
-            phone: data.phone,
+            documentId: documentId || `SC-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+            phone,
             address: data.address || null,
             email: data.email || null,
             notes: data.notes || null

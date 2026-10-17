@@ -1,6 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import { formatCop } from '@shared/money'
 import { DEFAULT_TICKET_PRICE } from '@shared/constants'
 import { formatDateCo } from '@shared/dates'
@@ -8,6 +7,7 @@ import type { PaymentSummary, TicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
 import { cn } from '../../lib/cn'
 import { AssignSellerForm } from './AssignSellerForm'
+import { BuyerDataForm } from './BuyerDataForm'
 import { SellTicketForm } from '../sales/SellTicketForm'
 import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
 import { MarkUnusableButtons } from './MarkUnusableButtons'
@@ -30,14 +30,9 @@ export function TicketDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [showSale, setShowSale] = useState(false)
   const [saleSellerId, setSaleSellerId] = useState<string | null>(null)
-  const [buyerName, setBuyerName] = useState('')
-  const [savingBuyer, setSavingBuyer] = useState(false)
 
   async function load(n: number) {
-    const [ticketRes, paymentsRes] = await Promise.all([
-      window.api.tickets.getByNumber(n),
-      window.api.payments.listByTicket(n)
-    ])
+    const ticketRes = await window.api.tickets.getByNumber(n)
     if (!ticketRes.ok) {
       setError(ticketRes.error)
       setTicket(null)
@@ -45,8 +40,8 @@ export function TicketDetailPage() {
       return
     }
     setTicket(ticketRes.data)
-    setBuyerName(ticketRes.data.buyerName ?? '')
     setError(null)
+    const paymentsRes = await window.api.payments.listByTicket(n)
     if (paymentsRes.ok) setPayments(paymentsRes.data)
   }
 
@@ -65,28 +60,6 @@ export function TicketDetailPage() {
     if (!ticket || params.get('asignar') !== '1') return
     document.getElementById(`asignar-${ticket.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [ticket, params])
-
-  async function onSaveBuyer(e: FormEvent) {
-    e.preventDefault()
-    if (!ticket) return
-    const fullName = buyerName.trim()
-    if (fullName.length < 2) {
-      toast.error('Escriba el nombre del comprador')
-      return
-    }
-    setSavingBuyer(true)
-    const res = await window.api.tickets.setBuyer({
-      ticketNumber: ticket.number,
-      fullName
-    })
-    setSavingBuyer(false)
-    if (!res.ok) {
-      toast.error(res.error)
-      return
-    }
-    toast.success('Comprador guardado')
-    await load(ticket.number)
-  }
 
   if (error) {
     return (
@@ -164,28 +137,16 @@ export function TicketDetailPage() {
                 </p>
                 <p className="mt-1 font-medium">{ticket.sellerName ?? '—'}</p>
               </div>
-              <div className="rounded-xl border border-line bg-[#FFF5F5] p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-accent-red">
-                  Comprador
-                </p>
+              <div className="rounded-xl border border-line bg-[#FFF5F5] p-3 sm:col-span-2">
                 {can('tickets:sell') ? (
-                  <form onSubmit={(e) => void onSaveBuyer(e)} className="mt-2 flex flex-col gap-2">
-                    <input
-                      className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
-                      placeholder="Nombre del comprador"
-                      value={buyerName}
-                      onChange={(e) => setBuyerName(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      disabled={savingBuyer}
-                      className="self-start rounded-lg bg-brand-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                    >
-                      {savingBuyer ? 'Guardando…' : ticket.buyerName ? 'Actualizar nombre' : 'Guardar nombre'}
-                    </button>
-                  </form>
+                  <BuyerDataForm ticket={ticket} onSaved={() => void load(ticket.number)} />
                 ) : (
-                  <p className="mt-1 font-medium">{ticket.buyerName ?? '—'}</p>
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-accent-red">
+                      Comprador
+                    </p>
+                    <p className="mt-1 font-medium">{ticket.buyerName ?? '—'}</p>
+                  </>
                 )}
               </div>
             </div>

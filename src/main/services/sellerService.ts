@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { PrismaClient } from '@prisma/client'
 import { getPrisma } from '../db/client'
+import { SQLITE_TX } from '../db/sqliteTx'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import type { ApiResult, SellerSummary, SellerTicketSummary, TicketStatus } from '../../shared/types'
@@ -337,7 +338,7 @@ export async function deleteSeller(id: string): Promise<ApiResult<{ id: string }
           origin: 'MANUAL'
         }
       })
-    })
+    }, SQLITE_TX)
 
     return { ok: true, data: { id } }
   } catch (e) {

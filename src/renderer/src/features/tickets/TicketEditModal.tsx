@@ -5,6 +5,7 @@ import { formatTicketNumber } from '@shared/tickets/numbers'
 import { useAuth } from '../auth/AuthContext'
 import { isUnusableTicket } from '@shared/domain/ticketStatus'
 import { AssignSellerForm } from './AssignSellerForm'
+import { BuyerDataForm } from './BuyerDataForm'
 import { MarkUnusableButtons } from './MarkUnusableButtons'
 import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
 
@@ -23,14 +24,11 @@ export function TicketEditModal({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function load() {
-    setLoading(true)
-    const [ticketRes, paymentsRes] = await Promise.all([
-      window.api.tickets.getByNumber(ticketNumber),
-      window.api.payments.listByTicket(ticketNumber)
-    ])
-    setLoading(false)
+  async function load(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true)
+    const ticketRes = await window.api.tickets.getByNumber(ticketNumber)
     if (!ticketRes.ok) {
+      if (!opts?.silent) setLoading(false)
       setError(ticketRes.error)
       setTicket(null)
       setPayments([])
@@ -38,7 +36,9 @@ export function TicketEditModal({
     }
     setError(null)
     setTicket(ticketRes.data)
-    setPayments(paymentsRes.ok ? paymentsRes.data : [])
+    if (!opts?.silent) setLoading(false)
+    const paymentsRes = await window.api.payments.listByTicket(ticketNumber)
+    if (paymentsRes.ok) setPayments(paymentsRes.data)
   }
 
   useEffect(() => {
@@ -46,8 +46,8 @@ export function TicketEditModal({
   }, [ticketNumber])
 
   async function handleChanged() {
-    await load()
     onChanged?.()
+    await load({ silent: true })
   }
 
   return (
@@ -70,6 +70,11 @@ export function TicketEditModal({
 
         {ticket && (
           <div className="mt-5 space-y-5">
+            {can('tickets:sell') && (
+              <div className="rounded-2xl border border-line p-4">
+                <BuyerDataForm ticket={ticket} onSaved={() => void handleChanged()} />
+              </div>
+            )}
             {!isUnusableTicket(ticket.status) && can('tickets:sell') && (
               <AssignSellerForm
                 ticketNumber={ticket.number}
@@ -82,7 +87,10 @@ export function TicketEditModal({
             <MarkUnusableButtons
               ticketNumber={ticket.number}
               status={ticket.status}
-              onDone={() => void handleChanged()}
+              onDone={() => {
+                onChanged?.()
+                onClose()
+              }}
             />
 
             <div className="overflow-hidden rounded-2xl border border-line">

@@ -380,7 +380,7 @@ export function HomePage() {
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {row.status !== 'PERDIDA' && row.status !== 'DAÑADA' && can('tickets:sell') && (
+                      {can('tickets:sell') && (
                         <TicketEditButton ticketNumber={row.ticketNumber} onChanged={() => void load()}>
                           Editar
                         </TicketEditButton>

@@ -8,6 +8,8 @@ import { inputDateToIso, todayInputDate } from '@shared/dates'
 import type { PaymentMethodSummary, PaymentSummary, SellerSummary, TicketSummary } from '@shared/types'
 import { useAuth } from '../auth/AuthContext'
 import { AssignSellerForm } from '../tickets/AssignSellerForm'
+import { BuyerDataForm } from '../tickets/BuyerDataForm'
+import { MarkUnusableButtons } from '../tickets/MarkUnusableButtons'
 import { PaymentHistoryTable } from './PaymentHistoryTable'
 
 function paddedTicketInput(raw: string): string {
@@ -270,6 +272,18 @@ export function PaymentsPage() {
                 skipAbonoPrompt
                 onAssigned={() => void loadTicket(String(ticket.number))}
               />
+            </div>
+          )}
+
+          <MarkUnusableButtons
+            ticketNumber={ticket.number}
+            status={ticket.status}
+            onDone={() => void loadTicket(String(ticket.number))}
+          />
+
+          {ticket.status !== 'SIN_VENDER' && can('tickets:sell') && (
+            <div className="rounded-2xl border border-line bg-white p-5">
+              <BuyerDataForm ticket={ticket} onSaved={() => void loadTicket(String(ticket.number))} />
             </div>
           )}
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { splitSqlStatements } from '../src/main/db/sqlMigrator'
 import { buildBackupFileName } from '../src/main/backup/localSnapshot'
-import { DATABASE_FILE_NAME } from '../src/main/paths'
+import { DATABASE_FILE_NAME, sqliteDatabaseUrl } from '../src/main/paths'
 
 describe('sql migrator', () => {
   it('splits statements and ignores comments', () => {
@@ -24,6 +24,11 @@ CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 describe('packaging paths', () => {
   it('uses database.db as the live sqlite file name', () => {
     expect(DATABASE_FILE_NAME).toBe('database.db')
+  })
+
+  it('does not pin sqlite to a single prisma connection', () => {
+    expect(sqliteDatabaseUrl('C:\\Users\\app\\database.db')).toBe('file:C:/Users/app/database.db')
+    expect(sqliteDatabaseUrl('C:\\Users\\app\\database.db')).not.toContain('connection_limit')
   })
 
   it('names backups without overwriting', () => {

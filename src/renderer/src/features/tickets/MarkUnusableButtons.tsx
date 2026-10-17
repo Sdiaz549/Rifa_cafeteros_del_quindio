@@ -15,15 +15,15 @@ export function MarkUnusableButtons({
   onDone?: () => void
 }) {
   const { can } = useAuth()
-  const [busy, setBusy] = useState<'PERDIDA' | 'DAÑADA' | null>(null)
+  const [busy, setBusy] = useState<'PERDIDA' | 'DAÑADA' | 'RESTORE' | null>(null)
 
-  if (!can('tickets:mark_lost') || isUnusableTicket(status)) return null
+  if (!can('tickets:mark_lost')) return null
 
   async function mark(next: 'PERDIDA' | 'DAÑADA') {
     const label = next === 'DAÑADA' ? 'dañada' : 'perdida'
     if (
       !window.confirm(
-        `¿Marcar la boleta ${formatTicketNumber(ticketNumber)} como ${label.toUpperCase()}? Ya no se podrá vender ni abonar.`
+        `¿Marcar la boleta ${formatTicketNumber(ticketNumber)} como ${label.toUpperCase()}? Ya no se podrá vender ni abonar hasta que la quite de ${label}s.`
       )
     ) {
       return
@@ -40,6 +40,43 @@ export function MarkUnusableButtons({
     }
     toast.success(`Boleta marcada como ${label}`)
     onDone?.()
+  }
+
+  async function restore() {
+    const from = status === 'DAÑADA' ? 'dañadas' : 'perdidas'
+    if (
+      !window.confirm(
+        `¿Sacar la boleta ${formatTicketNumber(ticketNumber)} de ${from}? Quedará de nuevo disponible o en su estado de venta.`
+      )
+    ) {
+      return
+    }
+    setBusy('RESTORE')
+    const res = await window.api.tickets.restore(ticketNumber)
+    setBusy(null)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success(`Boleta sacada de ${from}`)
+    onDone?.()
+  }
+
+  if (isUnusableTicket(status)) {
+    return (
+      <button
+        type="button"
+        disabled={busy != null}
+        className="rounded-xl border border-forest bg-[#e9f6ee] px-4 py-2 text-sm font-semibold text-forest disabled:opacity-60"
+        onClick={() => void restore()}
+      >
+        {busy === 'RESTORE'
+          ? 'Quitando…'
+          : status === 'DAÑADA'
+            ? 'Sacar de dañadas'
+            : 'Sacar de perdidas'}
+      </button>
+    )
   }
 
   return (

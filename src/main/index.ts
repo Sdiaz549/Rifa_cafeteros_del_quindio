@@ -21,6 +21,7 @@ import { startBackupScheduler } from './services/backupScheduler'
 import { registerDefaultVoiceHandlers } from './services/voiceCommandService'
 import { warmupWindowsSpeech } from './services/windowsSpeech'
 import { ensureTicketRange } from './services/ticketService'
+import { loadTicketIndex } from './services/ticketIndex'
 import { appendMediaCommandLineSwitches, grantMicrophoneAccess } from './mediaPermissions'
 import { errorToLog, logError, logInfo } from './logging/appLogger'
 
@@ -85,6 +86,7 @@ async function initializeDatabase(): Promise<void> {
     await runMigrations()
     await ensureRequiredData()
     await ensureTicketRange()
+    await loadTicketIndex()
     logInfo('db.init.ok')
   } catch (error) {
     logError('db.init.failed', errorToLog(error))

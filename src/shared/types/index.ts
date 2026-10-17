@@ -24,6 +24,9 @@ export interface TicketSummary {
   sellerName: string | null
   buyerId: string | null
   buyerName: string | null
+  buyerDocumentId?: string | null
+  buyerPhone?: string | null
+  buyerAddress?: string | null
   totalAmount: number
   totalPaid: number
   balanceDue: number
