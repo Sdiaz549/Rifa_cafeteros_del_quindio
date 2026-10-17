@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { getPrisma } from '../db/client'
+import { SQLITE_TX } from '../db/sqliteTx'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { assertNonNegativeMoney } from '../../shared/money'
@@ -13,6 +14,7 @@ import type {
   UpdatePaymentInput
 } from '../../shared/types'
 import { updateTicketBoardCell } from './ticketBoardCache'
+import { getIndexedTicket, rememberTicket } from './ticketIndex'
 
 const createPaymentSchema = z.object({
   ticketNumber: z.number().int().nonnegative(),
@@ -45,20 +47,26 @@ function mapTicket(t: {
   seller: { fullName: string } | null
   buyer: { fullName: string } | null
 }): TicketSummary {
-  return {
+  const prev = getIndexedTicket(t.number)
+  const summary: TicketSummary = {
     id: t.id,
     number: t.number,
     status: t.status,
     isSettled: t.isSettled,
     sellerId: t.sellerId,
-    sellerName: t.seller?.fullName ?? null,
+    sellerName: t.seller?.fullName ?? prev?.sellerName ?? null,
     buyerId: t.buyerId,
-    buyerName: t.buyer?.fullName ?? null,
+    buyerName: t.buyer?.fullName ?? prev?.buyerName ?? null,
+    buyerDocumentId: prev?.buyerDocumentId ?? null,
+    buyerPhone: prev?.buyerPhone ?? null,
+    buyerAddress: prev?.buyerAddress ?? null,
     totalAmount: t.totalAmount,
     totalPaid: t.totalPaid,
     balanceDue: t.balanceDue,
     soldAt: t.soldAt?.toISOString() ?? null
   }
+  rememberTicket(summary)
+  return summary
 }
 
 function mapPayment(
@@ -256,7 +264,7 @@ export async function createPayment(
       })
 
       return { ticket: updated, payment }
-    })
+    }, SQLITE_TX)
 
     updateTicketBoardCell(result.ticket.number, result.ticket.status, result.ticket.isSettled)
     return {
@@ -378,7 +386,7 @@ export async function updatePayment(
       })
 
       return { ticket: updated, payment }
-    })
+    }, SQLITE_TX)
 
     updateTicketBoardCell(result.ticket.number, result.ticket.status, result.ticket.isSettled)
     return {
@@ -439,7 +447,7 @@ export async function voidPayment(
       })
 
       return { ticket: updated, payment }
-    })
+    }, SQLITE_TX)
 
     updateTicketBoardCell(result.ticket.number, result.ticket.status, result.ticket.isSettled)
     return {

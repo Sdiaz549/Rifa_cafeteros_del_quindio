@@ -3,8 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Grid2X2, List, Ticket, X } from 'lucide-react'
 import type { TicketStatus, TicketSummary } from '@shared/types'
 import { formatCop } from '@shared/money'
-import { isUnusableTicket } from '@shared/domain/ticketStatus'
-import { boardStatsFromPacked, boardIndexForQuery, packTicketCell, packedCellMatchesFilter, unpackTicketCell, type TicketBoardFilter } from '@shared/tickets/board'
+import { applyPackedCellDelta, boardStatsFromPacked, boardIndexForQuery, packTicketCell, packedCellMatchesFilter, unpackTicketCell, type TicketBoardFilter, type TicketBoardStats } from '@shared/tickets/board'
 import { formatTicketNumber, parseTicketNumber } from '@shared/tickets/numbers'
 import { cn } from '../../lib/cn'
 import { PageHeader } from '../../components/PageHeader'
@@ -72,7 +71,8 @@ export function TicketsPage() {
   const [total, setTotal] = useState(0)
   const [boardFirst, setBoardFirst] = useState(0)
   const [packed, setPacked] = useState<number[]>([])
-  const [stats, setStats] = useState<Record<string, number> | null>(null)
+  const [boardRev, setBoardRev] = useState(0)
+  const [stats, setStats] = useState<TicketBoardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,9 +85,11 @@ export function TicketsPage() {
   const totalRef = useRef(0)
   const listGen = useRef(0)
   const boardFirstRef = useRef(0)
+  const packedRef = useRef<number[]>([])
   itemsRef.current = items
   totalRef.current = total
   boardFirstRef.current = boardFirst
+  packedRef.current = packed
 
   useEffect(() => {
     setQuery(initialQ)
@@ -101,23 +103,34 @@ export function TicketsPage() {
 
   const applyBoardCell = useCallback((number: number, ticketStatus: TicketStatus, isSettled: boolean) => {
     const first = boardFirstRef.current
-    setPacked((prev) => {
-      const i = number - first
-      if (i < 0 || i >= prev.length) return prev
+    const cells = packedRef.current
+    const i = number - first
+    if (i >= 0 && i < cells.length) {
+      const prevCell = cells[i]
+      const nextCell = packTicketCell(ticketStatus, isSettled)
+      if (prevCell !== nextCell) {
+        cells[i] = nextCell
+        setStats((current) =>
+          current ? applyPackedCellDelta(current, prevCell, nextCell) : boardStatsFromPacked(cells)
+        )
+        setBoardRev((n) => n + 1)
+      }
+    }
+    setItems((prev) => {
+      const idx = prev.findIndex((row) => row.number === number)
+      if (idx < 0) return prev
+      if (status && !packedCellMatchesFilter(packTicketCell(ticketStatus, isSettled), status)) {
+        setTotal((t) => Math.max(0, t - 1))
+        return prev.filter((row) => row.number !== number)
+      }
       const next = prev.slice()
-      next[i] = packTicketCell(ticketStatus, isSettled)
-      setStats(boardStatsFromPacked(next))
+      next[idx] = { ...next[idx], status: ticketStatus, isSettled }
       return next
     })
-    setItems((prev) =>
-      prev.map((row) =>
-        row.number === number ? { ...row, status: ticketStatus, isSettled } : row
-      )
-    )
     setSelectedTicket((current) =>
       current?.number === number ? { ...current, status: ticketStatus, isSettled } : current
     )
-  }, [])
+  }, [status])
 
   const loadBoard = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -282,7 +295,7 @@ export function TicketsPage() {
       if (packedCellMatchesFilter(cell, status)) n += 1
     }
     return n
-  }, [packed, status])
+  }, [packed, status, boardRev])
 
   const summaryCards = [
     { label: 'Total de boletas', value: stats?.total, tone: 'bg-white' },
@@ -303,7 +316,7 @@ export function TicketsPage() {
     const number = boardFirst + index
     const cell = unpackTicketCell(packed[index])
     return { missing: false as const, number, ...cell }
-  }, [debouncedQuery, boardFirst, packed])
+  }, [debouncedQuery, boardFirst, packed, boardRev])
 
   function openAvailable(t: TicketSummary) {
     setAssignStep('choose')
@@ -458,14 +471,15 @@ export function TicketsPage() {
         </button>
       )}
 
-      {loading && <p className="text-ink-muted">Cargando boletas…</p>}
-      {error && <p className="text-accent-red">{error}</p>}
+      {loading && packed.length === 0 && <p className="text-ink-muted">Cargando boletas…</p>}
+      {error && packed.length === 0 && <p className="text-accent-red">{error}</p>}
 
-      {!loading && !error && packed.length > 0 && view === 'grid' && filteredCount > 0 && (
+      {packed.length > 0 && view === 'grid' && filteredCount > 0 && (
         <div className="app-card p-4">
           <TicketBoardCanvas
             first={boardFirst}
             packed={packed}
+            revision={boardRev}
             statusFilter={status}
             query={debouncedQuery}
             onPick={onPick}
@@ -477,7 +491,7 @@ export function TicketsPage() {
         </div>
       )}
 
-      {!loading && !error && view === 'list' && items.length > 0 && (
+      {view === 'list' && items.length > 0 && (
         <div className="app-card overflow-hidden">
           <table id="ticket-row-list" className="w-full text-left text-sm">
             <thead className="bg-brand-50 text-ink-muted">
@@ -534,22 +548,33 @@ export function TicketsPage() {
                       >
                         {t.sellerName ? 'Cambiar vendedor' : 'Asignar'}
                       </button>
-                    ) : !isUnusableTicket(t.status) ? (
+                    ) : (
                       <TicketEditButton
                         ticketNumber={t.number}
                         onChanged={() => {
-                          void loadBoard({ silent: true })
                           void window.api.tickets.getByNumber(t.number).then((res) => {
                             if (!res.ok) return
-                            setItems((prev) =>
-                              prev.map((row) => (row.number === t.number ? res.data : row))
-                            )
+                            const updated = res.data
+                            setItems((prev) => {
+                              if (!prev.some((row) => row.number === updated.number)) return prev
+                              if (
+                                status &&
+                                !packedCellMatchesFilter(
+                                  packTicketCell(updated.status, updated.isSettled),
+                                  status
+                                )
+                              ) {
+                                setTotal((n) => Math.max(0, n - 1))
+                                return prev.filter((row) => row.number !== updated.number)
+                              }
+                              return prev.map((row) => (row.number === updated.number ? updated : row))
+                            })
                           })
                         }}
                       >
                         Editar
                       </TicketEditButton>
-                    ) : null}
+                    )}
                   </td>
                 </tr>
               ))}
@@ -571,17 +596,17 @@ export function TicketsPage() {
         </div>
       )}
 
-      {!loading && !error && view === 'grid' && packed.length === 0 && (
+      {!loading && view === 'grid' && packed.length === 0 && (
         <div className="app-card border-dashed p-10 text-center text-ink-muted">
           No hay boletas para mostrar.
         </div>
       )}
-      {!loading && !error && view === 'grid' && packed.length > 0 && filteredCount === 0 && (
+      {view === 'grid' && packed.length > 0 && filteredCount === 0 && (
         <div className="app-card border-dashed p-10 text-center text-ink-muted">
           No hay boletas en ese estado.
         </div>
       )}
-      {!loading && !error && view === 'list' && items.length === 0 && (
+      {!loading && view === 'list' && items.length === 0 && (
         <div className="app-card border-dashed p-10 text-center text-ink-muted">
           No hay boletas para mostrar.
         </div>

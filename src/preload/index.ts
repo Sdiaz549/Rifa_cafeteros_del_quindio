@@ -65,6 +65,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.TICKETS_MARK_LOST, number),
     markDamaged: (number: number): Promise<ApiResult<TicketSummary>> =>
       ipcRenderer.invoke(IPC_CHANNELS.TICKETS_MARK_DAMAGED, number),
+    restore: (number: number): Promise<ApiResult<TicketSummary>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.TICKETS_RESTORE, number),
     assign: (payload: {
       ticketNumber: number
       sellerId?: string
@@ -80,6 +82,9 @@ const api = {
     setBuyer: (payload: {
       ticketNumber: number
       fullName: string
+      documentId?: string
+      phone?: string
+      address?: string
     }): Promise<ApiResult<TicketSummary>> => ipcRenderer.invoke(IPC_CHANNELS.TICKETS_SET_BUYER, payload)
   },
   sales: {
@@ -104,9 +109,10 @@ const api = {
     list: (payload?: { query?: string; take?: number }): Promise<ApiResult<BuyerSummary[]>> =>
       ipcRenderer.invoke('buyers:list', payload),
     upsert: (payload: {
+      id?: string
       fullName: string
-      documentId: string
-      phone: string
+      documentId?: string
+      phone?: string
       address?: string | null
       email?: string | null
       notes?: string | null

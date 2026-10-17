@@ -391,7 +391,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-4 border-b border-dash-line bg-white px-5 py-3">
+        <header className="relative z-[80] flex items-center gap-4 border-b border-dash-line bg-white px-5 py-3">
           <form onSubmit={onSearch} className="flex min-w-0 flex-1 items-center gap-2">
             <div className="relative min-w-0 w-full max-w-3xl">
               <Search

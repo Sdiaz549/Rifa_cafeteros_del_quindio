@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getPrisma } from '../db/client'
+import { SQLITE_TX } from '../db/sqliteTx'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { assertNonNegativeMoney } from '../../shared/money'
@@ -181,7 +182,7 @@ export async function createExpense(
       })
 
       return created
-    })
+    }, SQLITE_TX)
 
     return { ok: true, data: mapExpense(expense) }
   } catch (e) {
@@ -229,7 +230,7 @@ export async function voidExpense(id: string): Promise<ApiResult<ExpenseSummary>
       })
 
       return updated
-    })
+    }, SQLITE_TX)
 
     return { ok: true, data: mapExpense(result) }
   } catch (e) {

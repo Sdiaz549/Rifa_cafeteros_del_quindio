@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   TICKETS_STATS: 'tickets:stats',
   TICKETS_MARK_LOST: 'tickets:markLost',
   TICKETS_MARK_DAMAGED: 'tickets:markDamaged',
+  TICKETS_RESTORE: 'tickets:restore',
   TICKETS_ASSIGN: 'tickets:assign',
   TICKETS_UNASSIGN: 'tickets:unassign',
   TICKETS_SET_BUYER: 'tickets:setBuyer',

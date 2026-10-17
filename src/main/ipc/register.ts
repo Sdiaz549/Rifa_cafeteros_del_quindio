@@ -23,6 +23,7 @@ import { cancelWindowsListen, listenWindowsSpeech, warmupWindowsSpeech } from '.
 import { getAppRuntimeInfo } from '../app/runtimeInfo'
 import { requireSession } from '../auth/session'
 import { IPC_CHANNELS, isAllowedIpcChannel, type IpcChannel } from '../../shared/ipc/channels'
+import { recoverPrisma } from '../db/client'
 
 type IpcHandler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
@@ -41,6 +42,8 @@ const handlers: Record<IpcChannel, IpcHandler> = {
     ticketService.markTicketLost(number as number),
   [IPC_CHANNELS.TICKETS_MARK_DAMAGED]: async (_e, number) =>
     ticketService.markTicketDamaged(number as number),
+  [IPC_CHANNELS.TICKETS_RESTORE]: async (_e, number) =>
+    ticketService.restoreTicket(number as number),
   [IPC_CHANNELS.TICKETS_ASSIGN]: async (_e, payload) =>
     ticketService.assignTicketToSeller(
       payload as Parameters<typeof ticketService.assignTicketToSeller>[0]
@@ -226,6 +229,36 @@ export function registerIpcHandlers(): void {
     if (!isAllowedIpcChannel(channel)) {
       throw new Error(`Canal IPC no autorizado: ${channel}`)
     }
-    ipcMain.handle(channel, handler)
+    const longRunning =
+      channel.startsWith('backups:') ||
+      channel.startsWith('voice:') ||
+      channel === IPC_CHANNELS.EXPORT_EXCEL ||
+      channel === IPC_CHANNELS.REPORTS_RUN ||
+      channel === IPC_CHANNELS.SELLERS_EXPORT_TICKETS_WORD ||
+      channel === IPC_CHANNELS.SELLERS_EXPORT_PAYMENTS_WORD ||
+      channel === IPC_CHANNELS.BACKUPS_CHOOSE_FOLDER
+    if (longRunning) {
+      ipcMain.handle(channel, handler)
+      continue
+    }
+    ipcMain.handle(channel, async (event, ...args) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          Promise.resolve(handler(event, ...args)),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('IPC_TIMEOUT')), 6000)
+          })
+        ])
+      } catch (error) {
+        if (error instanceof Error && error.message === 'IPC_TIMEOUT') {
+          recoverPrisma()
+          return { ok: false, error: 'La operación tardó demasiado. El buscador sigue disponible.' }
+        }
+        throw error
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    })
   }
 }

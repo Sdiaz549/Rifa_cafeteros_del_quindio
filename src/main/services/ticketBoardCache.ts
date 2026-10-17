@@ -27,12 +27,10 @@ export function updateTicketBoardCell(
   if (cache) {
     const i = number - cache.first
     if (i >= 0 && i < cache.packed.length) {
-      const packed = cache.packed.slice()
-      packed[i] = packTicketCell(status, isSettled)
-      cache = { first: cache.first, packed }
+      cache.packed[i] = packTicketCell(status, isSettled)
     }
   }
-  broadcastBoardUpdate({ type: 'cell', number, status, isSettled })
+  setImmediate(() => broadcastBoardUpdate({ type: 'cell', number, status, isSettled }))
 }
 
 export async function loadTicketBoardSnapshot(): Promise<TicketBoardSnapshot> {

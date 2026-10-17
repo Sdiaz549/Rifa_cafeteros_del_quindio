@@ -55,7 +55,7 @@ export function boardIndexForQuery(first: number, count: number, query: string):
   return i >= 0 && i < count ? i : null
 }
 
-export function boardStatsFromPacked(packed: number[]): {
+export type TicketBoardStats = {
   total: number
   disponible: number
   enAbonos: number
@@ -65,7 +65,35 @@ export function boardStatsFromPacked(packed: number[]): {
   liquidadas: number
   pendLiq: number
   vendidas: number
-} {
+}
+
+function tallyPackedCell(stats: TicketBoardStats, cell: number, delta: 1 | -1): void {
+  const status = cell & STATUS_MASK
+  if (status === 0) stats.disponible += delta
+  else if (status === 1) stats.enAbonos += delta
+  else if (status === 2) {
+    stats.cancelada += delta
+    if (!(cell & SETTLED_BIT)) stats.pendLiq += delta
+  } else if (status === 3) stats.perdida += delta
+  else if (status === 4) stats.danada += delta
+  if (cell & SETTLED_BIT) stats.liquidadas += delta
+}
+
+/** Ajusta contadores al cambiar una sola celda, sin recorrer las 10.000 boletas. */
+export function applyPackedCellDelta(
+  stats: TicketBoardStats,
+  prevCell: number,
+  nextCell: number
+): TicketBoardStats {
+  if (prevCell === nextCell) return stats
+  const next = { ...stats }
+  tallyPackedCell(next, prevCell, -1)
+  tallyPackedCell(next, nextCell, 1)
+  next.vendidas = next.total - next.disponible - next.perdida - next.danada
+  return next
+}
+
+export function boardStatsFromPacked(packed: number[]): TicketBoardStats {
   let disponible = 0
   let enAbonos = 0
   let cancelada = 0

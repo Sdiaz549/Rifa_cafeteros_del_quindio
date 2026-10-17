@@ -36,7 +36,7 @@ export function SellersPage() {
   const [deleting, setDeleting] = useState(false)
 
   async function load(q?: string) {
-    setLoading(true)
+    if (items.length === 0) setLoading(true)
     const res = await window.api.sellers.list({ query: q || undefined, take: 100 })
     setLoading(false)
     if (!res.ok) {
@@ -562,16 +562,14 @@ export function SellersPage() {
                             <td className="px-3 py-2 font-medium">{formatCop(t.totalPaid)}</td>
                             <td className="px-3 py-2">{formatCop(t.balanceDue)}</td>
                             <td className="px-3 py-2">
-                              {t.status !== 'PERDIDA' && t.status !== 'DAÑADA' && (
-                                <TicketEditButton
-                                  ticketNumber={t.number}
-                                  onChanged={() => {
-                                    if (selected) void openSeller(selected.id)
-                                  }}
-                                >
-                                  Editar
-                                </TicketEditButton>
-                              )}
+                              <TicketEditButton
+                                ticketNumber={t.number}
+                                onChanged={() => {
+                                  if (selected) void openSeller(selected.id)
+                                }}
+                              >
+                                Editar
+                              </TicketEditButton>
                             </td>
                             {selecting && (
                               <td className="px-3 py-2 font-medium">

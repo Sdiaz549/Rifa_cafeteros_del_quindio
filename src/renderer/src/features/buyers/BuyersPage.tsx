@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Users } from 'lucide-react'
 import { formatCop } from '@shared/money'
+import { publicDocumentId } from '@shared/identity'
 import { formatTicketNumber } from '@shared/tickets/numbers'
 import type { BuyerSummary, PaymentSummary } from '@shared/types'
 import { PageHeader } from '../../components/PageHeader'
 import { PaymentHistoryTable } from '../payments/PaymentHistoryTable'
 import { AssignSellerForm } from '../tickets/AssignSellerForm'
+import { MarkUnusableButtons } from '../tickets/MarkUnusableButtons'
 import { useAuth } from '../auth/AuthContext'
 
 const statusLabel: Record<string, string> = {
@@ -34,9 +36,17 @@ export function BuyersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [ticketPayments, setTicketPayments] = useState<Record<number, PaymentSummary[]>>({})
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    fullName: '',
+    documentId: '',
+    phone: '',
+    address: '',
+    email: ''
+  })
 
   async function load(q?: string) {
-    setLoading(true)
+    if (items.length === 0) setLoading(true)
     const res = await window.api.buyers.list({ query: q || undefined, take: 200 })
     setLoading(false)
     if (!res.ok) {
@@ -55,6 +65,46 @@ export function BuyersPage() {
   }, [query])
 
   const selected = items.find((b) => b.id === selectedId) ?? null
+
+  useEffect(() => {
+    if (!selected) {
+      setForm({ fullName: '', documentId: '', phone: '', address: '', email: '' })
+      return
+    }
+    setForm({
+      fullName: selected.fullName,
+      documentId: publicDocumentId(selected.documentId),
+      phone: selected.phone ?? '',
+      address: selected.address ?? '',
+      email: selected.email ?? ''
+    })
+  }, [selectedId, selected?.fullName, selected?.documentId, selected?.phone, selected?.address, selected?.email])
+
+  async function saveBuyer(e: FormEvent) {
+    e.preventDefault()
+    if (!selected) return
+    const fullName = form.fullName.trim()
+    if (fullName.length < 2) {
+      toast.error('Escriba el nombre del comprador')
+      return
+    }
+    setSaving(true)
+    const res = await window.api.buyers.upsert({
+      id: selected.id,
+      fullName,
+      documentId: form.documentId.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      address: form.address.trim() || null,
+      email: form.email.trim() || null
+    })
+    setSaving(false)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
+    toast.success('Datos del comprador actualizados')
+    await load(query)
+  }
 
   useEffect(() => {
     const tickets = selected?.tickets ?? []
@@ -81,7 +131,7 @@ export function BuyersPage() {
       <PageHeader
         icon={<Users size={22} />}
         title="Compradores"
-        description="Consulta de compradores, sus boletas y los abonos registrados."
+        description="Consulte compradores y actualice nombre, cédula, teléfono o dirección en cualquier momento."
       />
 
       <input
@@ -147,24 +197,66 @@ export function BuyersPage() {
               <div>
                 <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Comprador</p>
                 <h2 className="font-display mt-1 text-2xl font-semibold text-brand-900">{selected.fullName}</h2>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <dt className="text-ink-muted">Cédula</dt>
-                    <dd className="font-medium">{displayDoc(selected.documentId)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Teléfono</dt>
-                    <dd className="font-medium">{displayPhone(selected.phone)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Dirección</dt>
-                    <dd className="font-medium">{selected.address || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Correo</dt>
-                    <dd className="font-medium">{selected.email || '—'}</dd>
-                  </div>
-                </dl>
+                {can('buyers:manage') ? (
+                  <form onSubmit={(e) => void saveBuyer(e)} className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <input
+                      className="rounded-xl border border-line px-3 py-2 text-sm"
+                      placeholder="Nombre"
+                      value={form.fullName}
+                      onChange={(e) => setForm((s) => ({ ...s, fullName: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2 text-sm"
+                      placeholder="Cédula (opcional)"
+                      value={form.documentId}
+                      onChange={(e) => setForm((s) => ({ ...s, documentId: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2 text-sm"
+                      placeholder="Teléfono (opcional)"
+                      value={form.phone}
+                      onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2 text-sm"
+                      placeholder="Dirección (opcional)"
+                      value={form.address}
+                      onChange={(e) => setForm((s) => ({ ...s, address: e.target.value }))}
+                    />
+                    <input
+                      className="rounded-xl border border-line px-3 py-2 text-sm sm:col-span-2"
+                      placeholder="Correo (opcional)"
+                      value={form.email}
+                      onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="rounded-xl bg-brand-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2"
+                    >
+                      {saving ? 'Guardando…' : 'Guardar datos'}
+                    </button>
+                  </form>
+                ) : (
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <dt className="text-ink-muted">Cédula</dt>
+                      <dd className="font-medium">{displayDoc(selected.documentId)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-ink-muted">Teléfono</dt>
+                      <dd className="font-medium">{displayPhone(selected.phone)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-ink-muted">Dirección</dt>
+                      <dd className="font-medium">{selected.address || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-ink-muted">Correo</dt>
+                      <dd className="font-medium">{selected.email || '—'}</dd>
+                    </div>
+                  </dl>
+                )}
               </div>
 
               {(selected.tickets ?? []).length === 0 ? (
@@ -201,6 +293,13 @@ export function BuyersPage() {
                         />
                       </div>
                     )}
+                    <div className="mt-3">
+                      <MarkUnusableButtons
+                        ticketNumber={ticket.number}
+                        status={ticket.status}
+                        onDone={() => void load(query)}
+                      />
+                    </div>
                     {(ticketPayments[ticket.number] ?? []).length === 0 ? (
                       <p className="mt-3 text-sm text-ink-muted">Sin abonos registrados.</p>
                     ) : (

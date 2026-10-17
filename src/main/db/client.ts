@@ -27,8 +27,10 @@ export async function configureSqlite(): Promise<void> {
   await db.$queryRawUnsafe('PRAGMA cache_size=-65536')
   await db.$queryRawUnsafe('PRAGMA temp_store=MEMORY')
   await db.$queryRawUnsafe('PRAGMA mmap_size=268435456')
-  await db.$queryRawUnsafe('PRAGMA busy_timeout=5000')
+  await db.$queryRawUnsafe('PRAGMA busy_timeout=8000')
   await db.$queryRawUnsafe('PRAGMA foreign_keys=ON')
+  await db.$queryRawUnsafe('PRAGMA wal_autocheckpoint=1000')
+  await db.$queryRawUnsafe('PRAGMA journal_size_limit=67108864')
   await db.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE)')
   await db.$queryRawUnsafe('PRAGMA optimize')
   logInfo('sqlite.pragmas.ok', { journal: 'WAL', cacheMb: 64 })
@@ -44,4 +46,14 @@ export async function disconnectPrisma(): Promise<void> {
 
 export function resetPrismaClient(): void {
   prisma = null
+}
+
+/** Si SQLite se queda trabada, suelta el cliente sin esperar (el buscador no puede bloquearse). */
+export function recoverPrisma(): void {
+  const current = prisma
+  prisma = null
+  if (current) {
+    void current.$disconnect().catch(() => undefined)
+    logInfo('prisma.client.recovered')
+  }
 }

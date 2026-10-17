@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { getPrisma } from '../db/client'
+import { SQLITE_TX } from '../db/sqliteTx'
 import { requireSession } from '../auth/session'
 import { assertPermission } from '../../shared/permissions'
 import { DEFAULT_TICKET_PRICE } from '../../shared/constants'
@@ -8,6 +9,7 @@ import { assertNonNegativeMoney } from '../../shared/money'
 import { canSell, recalcTicketFinancials } from '../../shared/domain/ticketStatus'
 import type { ApiResult, CreateSaleInput, TicketSummary } from '../../shared/types'
 import { updateTicketBoardCell } from './ticketBoardCache'
+import { getIndexedTicket, rememberTicket } from './ticketIndex'
 
 const buyerInlineSchema = z.object({
   fullName: z.string().min(2),
@@ -43,20 +45,26 @@ function mapTicket(t: {
   seller: { fullName: string } | null
   buyer: { fullName: string } | null
 }): TicketSummary {
-  return {
+  const prev = getIndexedTicket(t.number)
+  const summary: TicketSummary = {
     id: t.id,
     number: t.number,
     status: t.status,
     isSettled: t.isSettled,
     sellerId: t.sellerId,
-    sellerName: t.seller?.fullName ?? null,
+    sellerName: t.seller?.fullName ?? prev?.sellerName ?? null,
     buyerId: t.buyerId,
-    buyerName: t.buyer?.fullName ?? null,
+    buyerName: t.buyer?.fullName ?? prev?.buyerName ?? null,
+    buyerDocumentId: prev?.buyerDocumentId ?? null,
+    buyerPhone: prev?.buyerPhone ?? null,
+    buyerAddress: prev?.buyerAddress ?? null,
     totalAmount: t.totalAmount,
     totalPaid: t.totalPaid,
     balanceDue: t.balanceDue,
     soldAt: t.soldAt?.toISOString() ?? null
   }
+  rememberTicket(summary)
+  return summary
 }
 
 export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>> {
@@ -218,7 +226,7 @@ export async function createSale(raw: unknown): Promise<ApiResult<TicketSummary>
       })
 
       return ticketUpdated
-    })
+    }, SQLITE_TX)
 
     updateTicketBoardCell(updated.number, updated.status, updated.isSettled)
     return { ok: true, data: mapTicket(updated) }

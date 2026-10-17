@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, copyFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-/** Carpeta de userData en Windows: %AppData%\SistemaRifas */
+/** Carpeta de userData en Windows: %LOCALAPPDATA%\SistemaRifas (nunca OneDrive/Roaming). */
 export const APP_USER_DATA_FOLDER = 'SistemaRifas'
 export const DATABASE_FILE_NAME = 'database.db'
 
@@ -17,17 +17,13 @@ function packaged(): boolean {
 
 /**
  * Debe llamarse una sola vez, antes de app.whenReady().
- * En producción fija userData a AppData\Roaming\SistemaRifas.
- * En desarrollo usa LocalAppData (nunca OneDrive: SQLite ahí se vuelve inutilizable).
+ * Producción y desarrollo usan LocalAppData: OneDrive en Roaming deja SQLite bloqueada
+ * después de borrar o guardar, y hay que cerrar el programa para que vuelva a responder.
  */
 export function configureAppIdentity(): void {
   try {
     app.setName(APP_USER_DATA_FOLDER)
-    if (app.isPackaged) {
-      app.setPath('userData', join(app.getPath('appData'), APP_USER_DATA_FOLDER))
-    } else {
-      app.setPath('userData', getDevDataRoot())
-    }
+    app.setPath('userData', packaged() ? getPackagedDataRoot() : getDevDataRoot())
   } catch (error) {
     console.error('[paths] configureAppIdentity', error)
   }
@@ -44,6 +40,18 @@ function getLocalAppData(): string {
 
 function getDevDataRoot(): string {
   return join(getLocalAppData(), `${APP_USER_DATA_FOLDER}-dev`)
+}
+
+function getPackagedDataRoot(): string {
+  return join(getLocalAppData(), APP_USER_DATA_FOLDER)
+}
+
+function getRoamingDataRoot(): string {
+  try {
+    return join(app.getPath('appData'), APP_USER_DATA_FOLDER)
+  } catch {
+    return join(homedir(), 'AppData', 'Roaming', APP_USER_DATA_FOLDER)
+  }
 }
 
 /** Raíz persistente de datos (nunca Program Files, asar ni OneDrive). */
@@ -75,8 +83,17 @@ export function getConfigPath(): string {
   return join(getUserDataRoot(), 'config')
 }
 
+/**
+ * SQLite no usa connection_limit=1: con transacciones interactivas Prisma deja
+ * el único cupo ocupado y el buscador se queda esperando hasta cerrar el programa.
+ */
+export function sqliteDatabaseUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  return `file:${normalized}`
+}
+
 export function getDatabaseUrl(): string {
-  return `file:${getDatabasePath().replace(/\\/g, '/')}`
+  return sqliteDatabaseUrl(getDatabasePath())
 }
 
 export function ensureAppDirectories(): void {
@@ -99,8 +116,11 @@ function legacyDatabaseCandidates(): string[] {
     )
   }
   try {
+    const roamingRoot = getRoamingDataRoot()
     const appData = app.getPath('appData')
     candidates.push(
+      join(roamingRoot, DATABASE_FILE_NAME),
+      join(roamingRoot, 'data', 'rifa.db'),
       join(appData, 'Rifa Cafeteros del Quindío', 'data', 'rifa.db'),
       join(appData, 'Rifa Cafeteros del Quindío', 'database.db'),
       join(appData, 'rifa-cafeteros-del-quindio', 'data', 'rifa.db')

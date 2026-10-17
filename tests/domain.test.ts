@@ -6,11 +6,22 @@ import {
   canAcceptPayment,
   canSell,
   canSettle,
-  canAssign
+  canAssign,
+  restoreUnusableTicketStatus
 } from '../src/shared/domain/ticketStatus'
 import { parseVoiceCommand, parseSpanishAmount } from '../src/shared/voice/parseCommand'
 import { formatTicketNumber, parseTicketNumber, ticketNumberBounds, ticketNumbersTable } from '../src/shared/tickets/numbers'
-import { packTicketCell, unpackTicketCell, boardStatsFromPacked, boardIndexForQuery } from '../src/shared/tickets/board'
+import { packTicketCell, unpackTicketCell, boardStatsFromPacked, boardIndexForQuery, applyPackedCellDelta } from '../src/shared/tickets/board'
+import { isGeneratedDocumentId, publicDocumentId } from '../src/shared/identity'
+
+describe('identity documents', () => {
+  it('hides generated placeholder ids so they can be filled later', () => {
+    expect(isGeneratedDocumentId('SC-abc123')).toBe(true)
+    expect(isGeneratedDocumentId('123456')).toBe(false)
+    expect(publicDocumentId('SC-abc123')).toBe('')
+    expect(publicDocumentId('123456')).toBe('123456')
+  })
+})
 
 describe('ticket numbers', () => {
   it('uses 0000–9999 for 10.000 boletas', () => {
@@ -45,6 +56,18 @@ describe('ticket board packing', () => {
     expect(stats.liquidadas).toBe(1)
     expect(stats.pendLiq).toBe(1)
     expect(stats.vendidas).toBe(2)
+  })
+
+  it('updates board stats from a single cell change', () => {
+    const available = packTicketCell('SIN_VENDER', false)
+    const lost = packTicketCell('PERDIDA', false)
+    const stats = boardStatsFromPacked([available, packTicketCell('EN_ABONOS', false)])
+    const next = applyPackedCellDelta(stats, available, lost)
+    expect(next.disponible).toBe(0)
+    expect(next.perdida).toBe(1)
+    expect(next.enAbonos).toBe(1)
+    expect(next.vendidas).toBe(1)
+    expect(next.total).toBe(2)
   })
 
   it('finds a ticket index from the search query', () => {
@@ -118,6 +141,16 @@ describe('ticket financials', () => {
       currentStatus: 'DAÑADA'
     })
     expect(result.status).toBe('DAÑADA')
+  })
+
+  it('restores unusable tickets according to payments', () => {
+    expect(restoreUnusableTicketStatus({ totalAmount: 0, totalPaidActive: 0 })).toBe('SIN_VENDER')
+    expect(restoreUnusableTicketStatus({ totalAmount: 50000, totalPaidActive: 10000 })).toBe(
+      'EN_ABONOS'
+    )
+    expect(restoreUnusableTicketStatus({ totalAmount: 50000, totalPaidActive: 50000 })).toBe(
+      'CANCELADA'
+    )
   })
 
   it('packs DAÑADA separately from PERDIDA', () => {

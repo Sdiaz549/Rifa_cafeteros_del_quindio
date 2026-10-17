@@ -48,12 +48,14 @@ function scrollCellIntoView(wrap: HTMLElement, index: number, cols: number, rowH
 export function TicketBoardCanvas({
   first,
   packed,
+  revision = 0,
   statusFilter,
   query,
   onPick
 }: {
   first: number
   packed: number[]
+  revision?: number
   statusFilter: TicketBoardFilter
   query: string
   onPick: (number: number, status: TicketStatus, isSettled: boolean) => void
@@ -193,7 +195,13 @@ export function TicketBoardCanvas({
     schedulePaintRef.current = schedule
 
     paint(true)
-    const ro = new ResizeObserver(onScrollOrResize)
+    let lastWidth = Math.round(wrap.clientWidth)
+    const ro = new ResizeObserver(() => {
+      const width = Math.round(wrap.clientWidth)
+      if (width === lastWidth) return
+      lastWidth = width
+      onScrollOrResize()
+    })
     ro.observe(wrap)
     const target: Window | HTMLElement = scroller ?? window
     target.addEventListener('scroll', onScrollOrResize, { passive: true })
@@ -207,10 +215,19 @@ export function TicketBoardCanvas({
   }, [])
 
   useEffect(() => {
-    indicesRef.current = boardFilterIndices(packed, statusFilter)
+    packedRef.current = packed
+    if (statusFilter) {
+      indicesRef.current = boardFilterIndices(packed, statusFilter)
+    } else {
+      indicesRef.current = null
+    }
+    schedulePaintRef.current(true)
+  }, [packed, revision, statusFilter])
+
+  useEffect(() => {
     scrolledKeyRef.current = ''
     schedulePaintRef.current(true)
-  }, [packed, statusFilter, query, first])
+  }, [query, first, statusFilter])
 
   function onClick(e: MouseEvent<HTMLCanvasElement>) {
     const wrap = wrapRef.current
